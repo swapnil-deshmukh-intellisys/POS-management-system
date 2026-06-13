@@ -1,0 +1,355 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Trebuchet MS', 'Inter', sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Trebuchet MS', 'Inter', sans-serif;
+  }
+}
+
+/* Premium Glassmorphism overlays */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-panel-dark {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Hide scrollbars globally while preserving scroll behavior */
+html,
+body,
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* Custom animations for POS interaction alerts */
+@keyframes pulse-subtle {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.85;
+    transform: scale(0.98);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s infinite ease-in-out;
+}
+
+/* Premium floating animation for offers */
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s infinite ease-in-out;
+}
+
+/* Soft transition classes */
+.transition-all-300 {
+  transition: all 0.30s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Custom input styling matching images */
+.pos-input {
+  transition: all 0.2s ease-in-out;
+}
+
+.pos-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Checkbox toggle styled */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: .3s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+input:checked+.slider {
+  background-color: #2563eb;
+}
+
+input:checked+.slider:before {
+  transform: translateX(20px);
+}
+
+/* App dark theme */
+.dark body {
+  background: #24272b;
+  color: #e1ded8;
+}
+
+.dark .bg-\[\#f8fafc\] {
+  background-color: #24272b;
+}
+
+.dark .bg-white {
+  background-color: #30343a;
+}
+
+.dark .bg-slate-50 {
+  background-color: #3a3f46;
+}
+
+.dark .bg-slate-100 {
+  background-color: #454b53;
+}
+
+.dark .border-slate-100,
+.dark .border-slate-100\/80,
+.dark .border-slate-200,
+.dark .border-slate-200\/80,
+.dark .border-slate-200\/60 {
+  border-color: rgba(71, 85, 105, 0.75);
+}
+
+.dark .border-white {
+  border-color: #1e293b;
+}
+
+.dark .text-black,
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-700 {
+  color: #ebe7df;
+}
+
+.dark .text-slate-600,
+.dark .text-slate-500 {
+  color: #c3beb4;
+}
+
+.dark .text-slate-400 {
+  color: #9d978d;
+}
+
+.dark .placeholder\:text-slate-400::placeholder {
+  color: #9d978d;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  color: #ebe7df;
+  background-color: #383d44;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  background-color: #424851;
+  border-color: #4db68f;
+  box-shadow: 0 0 0 3px rgba(77, 182, 143, 0.16);
+}
+
+.dark .hover\:bg-slate-50:hover {
+  background-color: #414750;
+}
+
+.dark .hover\:bg-white:hover {
+  background-color: #414750;
+}
+
+.dark .hover\:bg-blue-50:hover,
+.dark .bg-blue-50 {
+  background-color: rgba(77, 182, 143, 0.14);
+}
+
+.dark .hover\:bg-blue-100:hover {
+  background-color: rgba(77, 182, 143, 0.24);
+}
+
+.dark .hover\:bg-amber-50:hover,
+.dark .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.14);
+}
+
+.dark .hover\:bg-amber-100:hover {
+  background-color: rgba(245, 158, 11, 0.24);
+}
+
+.dark .hover\:bg-red-50:hover,
+.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.14);
+}
+
+.dark .hover\:bg-red-100:hover {
+  background-color: rgba(239, 68, 68, 0.24);
+}
+
+.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.14);
+}
+
+.dark .hover\:bg-emerald-50:hover {
+  background-color: rgba(16, 185, 129, 0.22);
+}
+
+.dark .ring-blue-100 {
+  --tw-ring-color: rgba(77, 182, 143, 0.22);
+}
+
+.dark .ring-amber-100 {
+  --tw-ring-color: rgba(251, 191, 36, 0.24);
+}
+
+.dark .ring-emerald-100 {
+  --tw-ring-color: rgba(52, 211, 153, 0.24);
+}
+
+.dark .ring-red-100 {
+  --tw-ring-color: rgba(248, 113, 113, 0.24);
+}
+
+.dark .shadow-slate-200\/80,
+.dark .shadow-slate-200\/70 {
+  --tw-shadow-color: rgba(0, 0, 0, 0.42);
+}
+
+.dark table tbody tr:hover {
+  background-color: rgba(88, 95, 105, 0.45);
+}
+
+.dark .bg-gradient-to-r {
+  background-image: linear-gradient(to right, rgba(77, 182, 143, 0.16), rgba(120, 113, 108, 0.12), rgba(217, 119, 6, 0.12));
+}
+
+.dark .rounded-2xl:hover,
+.dark .rounded-xl:hover {
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.dark button.bg-white:hover,
+.dark div.bg-white:hover {
+  border-color: rgba(77, 182, 143, 0.28);
+}
+
+.dark .bg-blue-600,
+.dark .hover\:bg-blue-700:hover {
+  background-color: #2f8f6b;
+}
+
+.dark .text-blue-600,
+.dark .text-blue-700 {
+  color: #64c79e;
+}
+
+.dark .border-blue-300,
+.dark .focus\:border-blue-500:focus,
+.dark .focus\:border-blue-600:focus,
+.dark .focus\:border-blue-600\/50:focus,
+.dark .hover\:border-blue-200:hover {
+  border-color: #4db68f;
+}
+
+.dark input:checked+.slider {
+  background-color: #2f8f6b;
+}
+
+/* Full-screen Invoice and Success View layout overrides */
+body.is-invoice-view aside,
+body.is-invoice-view nav,
+body.is-invoice-view header,
+body.is-invoice-view .global-assistant,
+body.is-invoice-view #business-assistant-trigger,
+body.is-invoice-view [data-testid="business-assistant"],
+body.is-invoice-view button[title="Open Business Assistant"],
+body.is-invoice-view button.bg-gradient-to-r.from-purple-600 {
+  display: none !important;
+}
+
+body.is-invoice-view .lg\:ml-64 {
+  margin-left: 0 !important;
+  width: 100% !important;
+}
+
+body.is-invoice-view main {
+  padding-top: 1.5rem !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+  padding-bottom: 2rem !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+}
+
+/* Print optimizations */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body.is-invoice-view main {
+    padding: 0 !important;
+  }
+}

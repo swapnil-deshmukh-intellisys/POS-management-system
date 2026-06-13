@@ -1,0 +1,10 @@
+
+> pos-backend@1.0.0 dev
+> ts-node-dev --respawn --transpile-only src/index.ts
+
+[INFO] 12:35:56 ts-node-dev ver. 2.0.0 (using ts-node ver. 10.9.2, typescript ver. 5.9.3)
+===========================================
+  POS Backend API Running on port 5000
+  Health Check: http://localhost:5000/api/health
+===========================================
+[0mGET /api/health [32m200[0m 3.162 ms - 54[0m
