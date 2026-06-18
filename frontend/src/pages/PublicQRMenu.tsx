@@ -279,11 +279,14 @@ export const PublicQRMenu: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Payment option
-  const [paymentOption, setPaymentOption] = useState<'Razorpay' | 'Counter'>('Razorpay');
+  const paymentOption = 'Razorpay';
 
   // Order transaction states
   const [orderPlaced, setOrderPlaced] = useState<any>(null);
-  const [trackStatus, setTrackStatus] = useState<'Received' | 'Preparing' | 'Ready' | 'Served'>('Received');
+  const [trackStatus, setTrackStatus] = useState<'Preparing' | 'Ready' | 'Waiter On The Way' | 'Served'>('Preparing');
+  const [estTimeRemaining, setEstTimeRemaining] = useState<number | null>(null);
+  const [initialPrepTime, setInitialPrepTime] = useState<number | null>(null);
+  const [currentPrepTime, setCurrentPrepTime] = useState<number | null>(null);
   const [razorpayMethod, setRazorpayMethod] = useState<'UPI' | 'Card' | 'Net' | 'Wallet' | 'QR'>('QR');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [cartNotification, setCartNotification] = useState<string | null>(null);
@@ -339,15 +342,15 @@ export const PublicQRMenu: React.FC = () => {
     handleConfirmRazorpayPayment(activeMethod as any);
   };
 
-  // Poll hook for live order KDS status updates
+  // Real-time EventSource listener for KDS status updates
   useEffect(() => {
     if (!orderPlaced) return;
     const orderId = orderPlaced.id || orderPlaced.orderId;
     if (!orderId) return;
 
     if (orderId.toString().startsWith('ord-')) {
-      const steps: ('Received' | 'Preparing' | 'Ready' | 'Served')[] = ['Received', 'Preparing', 'Ready', 'Served'];
-      setTrackStatus('Received');
+      const steps: ('Preparing' | 'Ready' | 'Waiter On The Way' | 'Served')[] = ['Preparing', 'Ready', 'Waiter On The Way', 'Served'];
+      setTrackStatus('Preparing');
       let stepIndex = 0;
       const interval = setInterval(() => {
         stepIndex++;
@@ -356,9 +359,42 @@ export const PublicQRMenu: React.FC = () => {
         } else {
           clearInterval(interval);
         }
-      }, 2000);
+      }, 5000);
       return () => clearInterval(interval);
     }
+
+    const sseUrl = `${API_BASE}/restaurant/realtime`;
+    console.log('[SSE] Connecting to', sseUrl);
+    const eventSource = new EventSource(sseUrl);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.type === 'ORDER_STATUS_UPDATE' && payload.data.id === orderId) {
+          const { status, estimatedPrepTime, acceptedAt } = payload.data;
+          console.log('[SSE] Received status update:', status);
+          
+          if (status === 'NEW' || status === 'ACCEPTED' || status === 'PREPARING') setTrackStatus('Preparing');
+          else if (status === 'READY') setTrackStatus('Ready');
+          else if (status === 'SERVING') setTrackStatus('Waiter On The Way');
+          else if (status === 'SERVED') setTrackStatus('Served');
+          
+          if (estimatedPrepTime) {
+            const created = acceptedAt ? new Date(acceptedAt).getTime() : Date.now();
+            const elapsed = Math.floor((Date.now() - created) / 60000);
+            setEstTimeRemaining(Math.max(0, estimatedPrepTime - elapsed));
+            setInitialPrepTime(prev => prev === null ? estimatedPrepTime : prev);
+            setCurrentPrepTime(estimatedPrepTime);
+          }
+        }
+      } catch (err) {
+        console.error('[SSE] Error processing message:', err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error('[SSE] Connection error:', err);
+    };
 
     const checkStatus = async () => {
       try {
@@ -366,23 +402,37 @@ export const PublicQRMenu: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           if (data && data.status) {
-            // Map backend status to our local status
-            if (data.status === 'NEW' || data.status === 'ACCEPTED') setTrackStatus('Received');
-            else if (data.status === 'PREPARING') setTrackStatus('Preparing');
+            if (data.status === 'NEW' || data.status === 'ACCEPTED' || data.status === 'PREPARING') setTrackStatus('Preparing');
             else if (data.status === 'READY') setTrackStatus('Ready');
-            else if (data.status === 'SERVED') {
-              setTrackStatus('Served');
+            else if (data.status === 'SERVING') setTrackStatus('Waiter On The Way');
+            else if (data.status === 'SERVED') setTrackStatus('Served');
+            
+            if (data.estimatedPrepTime) {
+              const created = data.acceptedAt ? new Date(data.acceptedAt).getTime() : new Date(data.createdAt).getTime();
+              const elapsed = Math.floor((Date.now() - created) / 60000);
+              setEstTimeRemaining(Math.max(0, data.estimatedPrepTime - elapsed));
+              setInitialPrepTime(prev => prev === null ? data.estimatedPrepTime : prev);
+              setCurrentPrepTime(data.estimatedPrepTime);
             }
           }
         }
       } catch (err) {
-        console.error('Error polling status:', err);
+        console.error('Error fetching order status:', err);
       }
     };
-
     checkStatus();
-    const interval = setInterval(checkStatus, 5000);
-    return () => clearInterval(interval);
+
+    const timerInterval = setInterval(() => {
+      setEstTimeRemaining((prev) => {
+        if (prev === null || prev <= 0) return prev;
+        return prev - 1;
+      });
+    }, 60000);
+
+    return () => {
+      eventSource.close();
+      clearInterval(timerInterval);
+    };
   }, [orderPlaced]);
 
   const fetchMenu = async () => {
@@ -883,50 +933,7 @@ export const PublicQRMenu: React.FC = () => {
   };
 
   const handleCheckout = async () => {
-    const subtotal = getCartTotal();
-    const discount = subtotal * 0.10;
-    const gst = (subtotal - discount) * 0.18;
-    const grandTotal = subtotal + gst - discount;
-
-    const itemsPayload = cart.map(entry => ({
-      menuItemId: entry.item.id,
-      quantity: entry.quantity,
-      notes: entry.notes ? `${entry.notes}${enableSpiceLevels ? ` | Spice: ${entry.spiceLevel || 'Medium'}` : ''}${entry.selectedAddOns.length ? ` | Addons: ${entry.selectedAddOns.map(ao => ao.name).join(', ')}` : ''}` : `${enableSpiceLevels ? `Spice: ${entry.spiceLevel || 'Medium'}` : ''}${entry.selectedAddOns.length ? ` | Addons: ${entry.selectedAddOns.map(ao => ao.name).join(', ')}` : ''}`,
-      unitPrice: entry.item.isOnOffer && entry.item.offerPrice ? entry.item.offerPrice : entry.item.price
-    }));
-
-    if (paymentOption === 'Razorpay') {
-      setScreen('razorpay');
-    } else {
-      const body = {
-        tableId: menu?.table?.id || 'mock-t-1',
-        items: itemsPayload,
-        notes: `Cust: ${customerName} | Phone: ${customerMobile}${customerEmail ? ` | Email: ${customerEmail}` : ''}`,
-        paymentMethod: 'COUNTER',
-        razorpayPaymentId: null,
-        razorpayOrderId: null
-      };
-
-      try {
-        const response = await fetch(`${API_BASE}/restaurant/public/order`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        const data = await response.json();
-        setOrderPlaced(data);
-        setScreen('confirmation');
-      } catch (err) {
-        const mockId = `ord-${Date.now().toString().slice(-6)}`;
-        setOrderPlaced({
-          id: mockId,
-          orderId: mockId,
-          totalAmount: grandTotal,
-          paymentStatus: 'PENDING'
-        });
-        setScreen('confirmation');
-      }
-    }
+    setScreen('razorpay');
   };
 
   const handleResetAll = () => {
@@ -939,7 +946,7 @@ export const PublicQRMenu: React.FC = () => {
     setCustomerEmail('');
     setSearchQuery('');
     setOrderPlaced(null);
-    setTrackStatus('Received');
+    setTrackStatus('Preparing');
     setRazorpayMethod('QR');
     setSelectedPaymentMethod('QR');
     setSelectedUPI('GPay');
@@ -1405,39 +1412,9 @@ export const PublicQRMenu: React.FC = () => {
                 ← Back
               </button>
               <h4 className="font-extrabold text-sm text-slate-800">Payment Method</h4>
-
-              <div className="space-y-3 pt-2">
-                <label className="flex items-center justify-between p-3.5 border rounded-xl bg-white cursor-pointer select-none">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="payment"
-                      checked={paymentOption === 'Razorpay'}
-                      onChange={() => setPaymentOption('Razorpay')}
-                      className="text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-[10px] font-extrabold text-slate-800 block">Pay Online (Razorpay)</span>
-                      <span className="text-[8px] text-slate-400 block">UPI, Cards, Netbanking & Wallets</span>
-                    </div>
-                  </div>
-                </label>
-
-                <label className="flex items-center justify-between p-3.5 border rounded-xl bg-white cursor-pointer select-none">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="payment"
-                      checked={paymentOption === 'Counter'}
-                      onChange={() => setPaymentOption('Counter')}
-                      className="text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-[10px] font-extrabold text-slate-800 block">Pay At Counter</span>
-                      <span className="text-[8px] text-slate-400 block">Settle bill directly at cash register</span>
-                    </div>
-                  </div>
-                </label>
+              <div className="p-3.5 border rounded-xl bg-slate-50 border-neutral-200 mt-2">
+                <span className="text-[10px] font-extrabold text-slate-800 block">Pay Online (Razorpay)</span>
+                <span className="text-[8px] text-slate-400 block">UPI, Cards, Netbanking & Wallets</span>
               </div>
             </div>
 
@@ -1450,7 +1427,7 @@ export const PublicQRMenu: React.FC = () => {
                 onClick={handleCheckout}
                 className={`w-full ${style.accent} text-white font-extrabold py-2.5 px-3 rounded-lg text-[10px] uppercase tracking-wider text-center`}
               >
-                {paymentOption === 'Razorpay' ? 'Proceed to Pay Online' : 'Place Order (Pay At Counter)'}
+                Proceed to Pay Online
               </button>
             </div>
           </div>
@@ -1458,7 +1435,7 @@ export const PublicQRMenu: React.FC = () => {
       })()}
 
       {screen === 'status' && (() => {
-        const steps = ['Received', 'Preparing', 'Ready', 'Served'] as const;
+        const steps = ['Preparing', 'Ready', 'Waiter On The Way', 'Served'] as const;
         const curIdx = steps.indexOf(trackStatus);
         return (
           <div className="flex-grow flex flex-col justify-between p-4 bg-slate-950 text-slate-200 text-left h-full max-h-full overflow-hidden">
@@ -1472,6 +1449,27 @@ export const PublicQRMenu: React.FC = () => {
                 <div className="flex justify-between text-slate-400"><span>Table Assigned:</span><span className="text-white font-extrabold">{menu?.table?.tableNumber || 'Table'}</span></div>
                 <div className="flex justify-between text-slate-400"><span>Diner Name:</span><span className="text-white font-extrabold">{customerName || 'Harry'}</span></div>
                 <div className="flex justify-between text-slate-400"><span>Preparation Level:</span><span className="text-white font-extrabold capitalize">{trackStatus}</span></div>
+                 {estTimeRemaining !== null && estTimeRemaining > 0 && (
+                  <div className="flex justify-between text-slate-400 border-t border-slate-800 pt-1.5">
+                    <span>Est. Time Remaining:</span>
+                    <span className="text-amber-400 font-extrabold">{estTimeRemaining} mins</span>
+                  </div>
+                )}
+                {currentPrepTime !== null && initialPrepTime !== null && currentPrepTime > initialPrepTime && (
+                  <div className="border-t border-red-500/30 pt-1.5 space-y-1 w-full">
+                    <div className="text-[9px] text-red-400 font-black animate-pulse text-left">
+                      ⚠️ Your order is taking slightly longer than expected.
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Expected Preparation:</span>
+                      <span className="text-white font-bold">{initialPrepTime} Min</span>
+                    </div>
+                    <div className="flex justify-between text-red-400">
+                      <span>Updated Prep Time:</span>
+                      <span className="font-black">{currentPrepTime} Min</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="relative w-full pl-6 space-y-3.5 text-left pt-2">
@@ -1483,7 +1481,7 @@ export const PublicQRMenu: React.FC = () => {
                     <div key={st} className="relative flex items-center gap-3">
                       <div className={`absolute left-[-20px] w-2.5 h-2.5 rounded-full border transition-all ${isAct ? 'bg-emerald-500 border-emerald-500 scale-110 shadow-lg shadow-emerald-500/40' : isDone ? 'bg-emerald-600 border-emerald-600' : 'bg-slate-900 border-slate-800'
                         }`} />
-                      <span className={`text-[9px] font-bold ${isAct ? 'text-emerald-400' : isDone ? 'text-slate-300' : 'text-slate-600'}`}>{st === 'Received' ? 'Order Received' : st === 'Preparing' ? 'Preparing Meal' : st === 'Ready' ? 'Food Ready' : 'Served to Table'}</span>
+                      <span className={`text-[9px] font-bold ${isAct ? 'text-emerald-400' : isDone ? 'text-slate-300' : 'text-slate-600'}`}>{st === 'Preparing' ? 'Preparing Meal' : st === 'Ready' ? 'Food Ready' : st === 'Waiter On The Way' ? 'Waiter On The Way' : 'Served to Table'}</span>
                     </div>
                   );
                 })}

@@ -18,6 +18,7 @@ export const DigitalMenuBuilder: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'menu' | 'qr' | 'customizer'>('menu');
   const [selectedTableForPreview, setSelectedTableForPreview] = useState<any>(null);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('ALL');
 
   // Modal forms states
   const [showCatModal, setShowCatModal] = useState(false);
@@ -674,13 +675,16 @@ export const DigitalMenuBuilder: React.FC = () => {
       return item.image;
     }
     const name = item.name?.toLowerCase() || '';
+    if (name.includes('veg crispy') || name.includes('crispy veg')) return 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=400&h=300&q=80';
+    if (name.includes('paneer tikka') || name.includes('paneer')) return 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?auto=format&fit=crop&w=400&h=300&q=80';
+    if (name.includes('pomfret') || name.includes('fish fry') || name.includes('pomfret fry')) return 'https://images.unsplash.com/photo-1534604973900-c43ab4c2e0ab?auto=format&fit=crop&w=400&h=300&q=80';
+    if (name.includes('biryani')) return 'https://images.unsplash.com/photo-1633945274405-b6c8069047b0?auto=format&fit=crop&w=400&h=300&q=80';
     if (name.includes('pizza')) return 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?auto=format&fit=crop&w=400&h=300&q=80';
     if (name.includes('burger')) return 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=400&h=300&q=80';
-    if (name.includes('paneer')) return 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=400&h=300&q=80';
     if (name.includes('garlic bread')) return 'https://images.unsplash.com/photo-1573140247632-f8fd74997d5c?auto=format&fit=crop&w=400&h=300&q=80';
     if (name.includes('soup') || name.includes('tomato')) return 'https://images.unsplash.com/photo-1547592165-e1d17f1a0655?auto=format&fit=crop&w=400&h=300&q=80';
     if (name.includes('fish') || name.includes('prawn') || name.includes('sea') || name.includes('seafood')) return 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=400&h=300&q=80';
-    if (name.includes('biryani') || name.includes('chicken') || name.includes('mutton') || name.includes('curry')) return 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=400&h=300&q=80';
+    if (name.includes('chicken') || name.includes('mutton') || name.includes('curry')) return 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=400&h=300&q=80';
     if (name.includes('naan') || name.includes('roti') || name.includes('bread')) return 'https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&h=300&q=80';
     if (name.includes('noodle') || name.includes('chinese') || name.includes('manchurian')) return 'https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=400&h=300&q=80';
     if (name.includes('sandwich')) return 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=400&h=300&q=80';
@@ -811,180 +815,264 @@ export const DigitalMenuBuilder: React.FC = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-7 space-y-6">
-          {activeTab === 'menu' && (
-            <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
-              <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                <h3 className="font-extrabold text-slate-800 text-base">Dishes & Categories</h3>
-                <div className="flex gap-2">
-                  <button onClick={() => setShowCatModal(true)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-3.5 rounded-xl flex items-center gap-1.5 text-xs transition-all">
-                    <Plus className="w-3.5 h-3.5" /> <span>Category</span>
-                  </button>
-                  <button onClick={() => { if (categories.length > 0) setSelectedCategoryId(categories[0].id); setShowItemModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3.5 rounded-xl flex items-center gap-1.5 text-xs shadow-md shadow-emerald-600/15 transition-all">
-                    <Plus className="w-3.5 h-3.5" /> <span>Menu Item</span>
-                  </button>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[710px] items-stretch overflow-hidden">
+        <div className="lg:col-span-7 h-full flex flex-col overflow-hidden">
+          <div className="flex-grow overflow-y-auto pr-2 pb-6 scrollbar-none space-y-6">
+            {activeTab === 'menu' && (
+              <div className="space-y-6">
+                {/* Header card with action buttons */}
+                <div className="bg-white rounded-3xl border border-slate-200/60 p-5 shadow-sm flex justify-between items-center">
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 text-base">Menu Catalog</h3>
+                    <p className="text-[10px] text-slate-400 font-medium">Manage and organize your categories and dishes</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowCatModal(true)} className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold py-2 px-3.5 rounded-xl flex items-center gap-1.5 text-xs transition-all">
+                      <Plus className="w-3.5 h-3.5" /> <span>Category</span>
+                    </button>
+                    <button onClick={() => { if (categories.length > 0) setSelectedCategoryId(categories[0].id); setShowItemModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3.5 rounded-xl flex items-center gap-1.5 text-xs shadow-md shadow-emerald-600/15 transition-all">
+                      <Plus className="w-3.5 h-3.5" /> <span>Menu Item</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-              {loading ? (
-                <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-emerald-600"></div></div>
-              ) : (
-                <div className="space-y-8">
-                  {categories.map(cat => {
-                    const items = menuItems.filter(item => item.categoryId === cat.id);
-                    return (
-                      <div key={cat.id} className="space-y-4">
-                        <div className="flex items-center justify-between bg-slate-50/70 p-3 rounded-2xl border border-slate-100">
-                          <div>
-                            <h4 className="font-extrabold text-slate-800 text-sm">{cat.name}</h4>
-                            <p className="text-[10px] text-slate-500 font-medium mt-0.5">{cat.description || 'No description'}</p>
+
+                {loading ? (
+                  <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-emerald-600"></div></div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Category List Selector */}
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Categories Catalog</span>
+                        {selectedCategoryFilter !== 'ALL' && (
+                          <button onClick={() => setSelectedCategoryFilter('ALL')} className="text-xs text-emerald-600 hover:text-emerald-700 font-bold">Clear Filter</button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        {/* All card */}
+                        <div
+                          onClick={() => setSelectedCategoryFilter('ALL')}
+                          className={`p-2.5 rounded-xl border cursor-pointer transition-all duration-200 select-none flex flex-col justify-between h-[68px] ${
+                            selectedCategoryFilter === 'ALL'
+                              ? 'bg-emerald-50/70 border-emerald-500 text-emerald-900 shadow-sm shadow-emerald-500/5 ring-1 ring-emerald-500/30'
+                              : 'bg-white border-slate-200/80 hover:border-emerald-300 text-slate-800 hover:shadow-sm'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center gap-1.5">
+                            <span className={`text-[10.5px] font-extrabold uppercase tracking-wider truncate ${selectedCategoryFilter === 'ALL' ? 'text-emerald-900' : 'text-slate-800'}`}>All Dishes</span>
+                            <span className="text-[9px] font-bold text-emerald-600 flex items-center gap-1 shrink-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                              Active
+                            </span>
                           </div>
-                          <span className="text-[10px] font-extrabold text-slate-500 bg-slate-200/80 px-2 py-0.5 rounded-md">{items.length} Items</span>
+                          <div className="flex justify-between items-center text-[10px] font-semibold text-slate-500 mt-1">
+                            <span>{menuItems.length} Items</span>
+                          </div>
                         </div>
-                        {items.length === 0 ? (
-                          <p className="text-xs text-slate-400 py-2 font-medium italic">No food items added in this category yet.</p>
-                        ) : (
+
+                        {/* Custom Category cards */}
+                        {categories.map(cat => {
+                          const items = menuItems.filter(item => item.categoryId === cat.id);
+                          const isSelected = selectedCategoryFilter === cat.id;
+                          return (
+                            <div
+                              key={cat.id}
+                              onClick={() => setSelectedCategoryFilter(cat.id)}
+                              className={`p-2.5 rounded-xl border cursor-pointer transition-all duration-200 select-none flex flex-col justify-between h-[68px] ${
+                                isSelected
+                                  ? 'bg-emerald-50/70 border-emerald-500 text-emerald-900 shadow-sm shadow-emerald-500/5 ring-1 ring-emerald-500/30'
+                                  : 'bg-white border-slate-200/80 hover:border-emerald-300 text-slate-800 hover:shadow-sm'
+                              }`}
+                            >
+                              <div className="flex justify-between items-center gap-1.5">
+                                <span className={`text-[10.5px] font-extrabold uppercase tracking-wider truncate ${isSelected ? 'text-emerald-900' : 'text-slate-800'}`}>{cat.name}</span>
+                                <span className="text-[9px] font-bold text-emerald-600 flex items-center gap-1 shrink-0">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                                  Active
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center text-[10px] font-semibold text-slate-500 mt-1">
+                                <span>{items.length} Items</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Food Items Catalog list */}
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Dishes & Recipe List</span>
+                      </div>
+
+                      {(() => {
+                        const filtered = selectedCategoryFilter === 'ALL'
+                          ? menuItems
+                          : menuItems.filter(item => item.categoryId === selectedCategoryFilter);
+
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="bg-white rounded-3xl border border-slate-200/60 p-8 text-center shadow-sm">
+                              <p className="text-xs text-slate-400 font-medium italic">No food items found in this category.</p>
+                            </div>
+                          );
+                        }
+
+                        return (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {items.map(item => {
+                            {filtered.map(item => {
                               const { type, cleanDesc } = parseFoodTypeAndDescription(item);
+                              const cat = categories.find(c => c.id === item.categoryId);
                               return (
-                                <div key={item.id} className="bg-white rounded-2xl border border-slate-200/60 p-4 shadow-sm hover:shadow-md transition-shadow flex gap-4">
-                                  <img src={getFoodImage(item)} alt={item.name} className="w-20 h-20 rounded-xl object-cover border border-slate-100 shrink-0 bg-slate-50" />
-                                  <div className="flex-1 flex flex-col justify-between">
+                                <div key={item.id} className="bg-white rounded-3xl border border-slate-200/60 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+                                  <div className="relative h-44 w-full bg-slate-50 overflow-hidden shrink-0">
+                                    <img src={getFoodImage(item)} alt={item.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                                    <div className="absolute top-3 left-3 flex gap-1.5">
+                                      {type === 'Veg' ? (
+                                        <span className="inline-flex items-center justify-center w-[18px] h-[18px] border-2 border-emerald-600 rounded bg-white p-[2px] shadow-sm shrink-0">
+                                          <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center justify-center w-[18px] h-[18px] border-2 border-red-600 rounded bg-white p-[2px] shadow-sm shrink-0">
+                                          <span className="w-2 h-2 rounded-full bg-red-600"></span>
+                                        </span>
+                                      )}
+                                      <span className="text-[9px] font-black uppercase tracking-wider bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-sm text-slate-800">
+                                        {cat?.name || 'Dish'}
+                                      </span>
+                                    </div>
+                                    <div className="absolute bottom-3 right-3">
+                                      <span className="text-[8.5px] font-extrabold uppercase tracking-widest bg-emerald-500 text-white px-2 py-0.5 rounded-full shadow-sm">
+                                        Available
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="p-4 flex-grow flex flex-col justify-between space-y-3">
                                     <div>
-                                      <div className="flex justify-between items-start gap-2">
-                                          {type === 'Veg' ? (
-                                            <span className="inline-flex items-center justify-center w-[11px] h-[11px] border border-emerald-600 rounded-sm shrink-0 bg-white p-[1.5px]">
-                                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-                                            </span>
-                                          ) : (
-                                            <span className="inline-flex items-center justify-center w-[11px] h-[11px] border border-red-600 rounded-sm shrink-0 bg-white p-[1.5px]">
-                                              <span className="w-1.5 h-1.5 rounded-full bg-red-600"></span>
-                                            </span>
-                                          )}
-                                          <h5 className="font-bold text-slate-800 text-xs tracking-tight">{item.name}</h5>
-                                        <div className="flex flex-col items-end">
-                                          {item.isOnOffer && item.offerPrice ? (
-                                            <>
-                                              <span className="text-[9px] text-slate-400 line-through">₹{item.price}</span>
-                                              <span className="text-xs font-bold text-emerald-600">₹{item.offerPrice}</span>
-                                            </>
-                                          ) : (
-                                            <span className="text-xs font-bold text-slate-800">₹{item.price}</span>
-                                          )}
-                                        </div>
+                                      <h5 className="font-extrabold text-slate-800 text-sm tracking-tight line-clamp-1">{item.name}</h5>
+                                      <p className="text-[10.5px] text-slate-500 mt-1 line-clamp-2 leading-relaxed font-medium">{cleanDesc || 'Standard restaurant recipe prepared fresh.'}</p>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                                      <div>
+                                        {item.isOnOffer && item.offerPrice ? (
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-[10px] text-slate-400 line-through">₹{item.price}</span>
+                                            <span className="text-sm font-black text-emerald-600">₹{item.offerPrice}</span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-sm font-black text-slate-800">₹{item.price}</span>
+                                        )}
                                       </div>
-                                      <p className="text-[10px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">{cleanDesc || 'Succulent standard recipe.'}</p>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1 mt-2">
-                                      {item.isChefSpecial && <span className="bg-red-50 text-red-600 border border-red-100 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase">Chef Spec</span>}
-                                      {item.isRecommended && <span className="bg-blue-50 text-blue-600 border border-blue-100 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase">Recomd</span>}
-                                      {item.isOnOffer && <span className="bg-amber-50 text-amber-600 border border-amber-100 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase">₹{item.offerPrice} Offer</span>}
-                                    </div>
-                                    <div className="flex gap-2 mt-2 pt-2 border-t border-slate-100">
-                                      <button onClick={() => handleEditClick(item)} className="text-emerald-600 hover:text-emerald-700 text-[10px] font-extrabold uppercase transition-all">Edit</button>
-                                      <button onClick={() => handleDeleteMenuItem(item.id)} className="text-red-500 hover:text-red-700 text-[10px] font-extrabold uppercase transition-all">Delete</button>
+                                      <div className="flex gap-2">
+                                        <button onClick={() => handleEditClick(item)} className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-extrabold uppercase tracking-wider transition-all">
+                                          Edit
+                                        </button>
+                                        <button onClick={() => handleDeleteMenuItem(item.id)} className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-100 text-rose-600 text-[10px] font-extrabold uppercase tracking-wider transition-all">
+                                          Delete
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
                               );
                             })}
                           </div>
-                        )}
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'qr' && (
+              <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
+                <div className="pb-4 border-b border-slate-100">
+                  <h3 className="font-extrabold text-slate-800 text-base">Table QR Print Management</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">Generate, customize, and print high-quality physical tables standees</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {tables.map(table => {
+                    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/public/menu/${table.qrCode?.qrToken || 'MOCK_QR'}`)}`;
+                    return (
+                      <div key={table.id} className="border border-slate-200/80 rounded-2xl p-5 bg-slate-50/30 text-center space-y-4 flex flex-col justify-between">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Dine-in Order QR</span>
+                          <h4 className="font-extrabold text-slate-800 text-lg mt-0.5">{table.tableNumber}</h4>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 inline-block mx-auto shadow-sm"><img src={qrUrl} alt="QR Code" className="w-32 h-32 mx-auto" /></div>
+                        <div className="space-y-2 pt-2">
+                          <div className="flex gap-2">
+                            <button onClick={() => handlePrintQR(table, 'card')} className="flex-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all"><Printer className="w-3.5 h-3.5" /> <span>Print Card</span></button>
+                            <a href={qrUrl} download={`${table.tableNumber}_QR.png`} target="_blank" rel="noreferrer" className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all"><Download className="w-3.5 h-3.5" /> <span>Download</span></a>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handlePrintQR(table, 'stand')} className="flex-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold py-2 px-3 rounded-xl text-[10px] flex items-center justify-center gap-1.5 transition-all"><span>Table Standee</span></button>
+                            <button onClick={() => handlePrintQR(table, 'tent')} className="flex-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold py-2 px-3 rounded-xl text-[10px] flex items-center justify-center gap-1.5 transition-all"><span>Folding Tent</span></button>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
 
-          {activeTab === 'qr' && (
-            <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
-              <div className="pb-4 border-b border-slate-100">
-                <h3 className="font-extrabold text-slate-800 text-base">Table QR Print Management</h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">Generate, customize, and print high-quality physical tables standees</p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {tables.map(table => {
-                  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/public/menu/${table.qrCode?.qrToken || 'MOCK_QR'}`)}`;
-                  return (
-                    <div key={table.id} className="border border-slate-200/80 rounded-2xl p-5 bg-slate-50/30 text-center space-y-4 flex flex-col justify-between">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Dine-in Order QR</span>
-                        <h4 className="font-extrabold text-slate-800 text-lg mt-0.5">{table.tableNumber}</h4>
-                      </div>
-                      <div className="bg-white p-4 rounded-2xl border border-slate-100 inline-block mx-auto shadow-sm"><img src={qrUrl} alt="QR Code" className="w-32 h-32 mx-auto" /></div>
-                      <div className="space-y-2 pt-2">
-                        <div className="flex gap-2">
-                          <button onClick={() => handlePrintQR(table, 'card')} className="flex-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all"><Printer className="w-3.5 h-3.5" /> <span>Print Card</span></button>
-                          <a href={qrUrl} download={`${table.tableNumber}_QR.png`} target="_blank" rel="noreferrer" className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all"><Download className="w-3.5 h-3.5" /> <span>Download</span></a>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => handlePrintQR(table, 'stand')} className="flex-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold py-2 px-3 rounded-xl text-[10px] flex items-center justify-center gap-1.5 transition-all"><span>Table Standee</span></button>
-                          <button onClick={() => handlePrintQR(table, 'tent')} className="flex-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold py-2 px-3 rounded-xl text-[10px] flex items-center justify-center gap-1.5 transition-all"><span>Folding Tent</span></button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'customizer' && (
-            <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
-              <div className="pb-4 border-b border-slate-100">
-                <h3 className="font-extrabold text-slate-800 text-base">Menu Card Customizer</h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">Customize cover images, headers, logo, and active branding messages</p>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Theme Color Preset</label>
-                  <div className="flex gap-3">
-                    {[
-                      { key: 'emerald', color: 'bg-emerald-600', name: 'Emerald' },
-                      { key: 'amber', color: 'bg-amber-500', name: 'Gilded Amber' },
-                      { key: 'rose', color: 'bg-rose-500', name: 'Rose Petal' },
-                      { key: 'indigo', color: 'bg-indigo-600', name: 'Royal Indigo' },
-                      { key: 'violet', color: 'bg-violet-600', name: 'Velvet Violet' }
-                    ].map((theme) => (
-                      <button key={theme.key} type="button" onClick={() => { setThemeColor(theme.key); saveCustomizerConfig({ themeColor: theme.key }); }} className={`flex-1 py-3 rounded-xl border flex flex-col items-center gap-2 font-bold text-[10px] uppercase transition-all ${themeColor === theme.key ? 'border-emerald-600 bg-slate-50 shadow-sm' : 'border-slate-200 hover:bg-slate-50/50'}`}><span className={`w-5 h-5 rounded-full ${theme.color} shadow-inner`}></span> <span>{theme.name}</span></button>
-                    ))}
-                  </div>
+            {activeTab === 'customizer' && (
+              <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
+                <div className="pb-4 border-b border-slate-100">
+                  <h3 className="font-extrabold text-slate-800 text-base">Menu Card Customizer</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">Customize cover images, headers, logo, and active branding messages</p>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Upload Restaurant Logo</label>
-                  <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { const b64 = reader.result as string; setLogoUrl(b64); saveCustomizerConfig({ logoUrl: b64 }); }; reader.readAsDataURL(file); } }} className="w-full border border-slate-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-600 bg-slate-50/50" />
-                  {logoUrl && <img src={logoUrl} alt="Logo Preview" className="mt-2 w-16 h-16 object-cover rounded-lg border" />}
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Upload Restaurant Cover Banner</label>
-                  <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { const b64 = reader.result as string; setCoverUrl(b64); saveCustomizerConfig({ coverUrl: b64 }); }; reader.readAsDataURL(file); } }} className="w-full border border-slate-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-600 bg-slate-50/50" />
-                  {coverUrl && <img src={coverUrl} alt="Banner Preview" className="mt-2 h-20 w-full object-cover rounded-lg border" />}
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Welcome Text</label>
-                  <input type="text" value={welcomeMsg} onChange={(e) => { setWelcomeMsg(e.target.value); saveCustomizerConfig({ welcomeMsg: e.target.value }); }} placeholder="Branding greeting card text..." className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-600 bg-slate-50/50" />
-                </div>
-                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Enable Spice Levels</label>
-                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">Show Mild/Medium/Hot selections on food details screen</p>
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Theme Color Preset</label>
+                    <div className="flex gap-3">
+                      {[
+                        { key: 'emerald', color: 'bg-emerald-600', name: 'Emerald' },
+                        { key: 'amber', color: 'bg-amber-500', name: 'Gilded Amber' },
+                        { key: 'rose', color: 'bg-rose-500', name: 'Rose Petal' },
+                        { key: 'indigo', color: 'bg-indigo-600', name: 'Royal Indigo' },
+                        { key: 'violet', color: 'bg-violet-600', name: 'Velvet Violet' }
+                      ].map((theme) => (
+                        <button key={theme.key} type="button" onClick={() => { setThemeColor(theme.key); saveCustomizerConfig({ themeColor: theme.key }); }} className={`flex-1 py-3 rounded-xl border flex flex-col items-center gap-2 font-bold text-[10px] uppercase transition-all ${themeColor === theme.key ? 'border-emerald-600 bg-slate-50 shadow-sm' : 'border-slate-200 hover:bg-slate-50/50'}`}><span className={`w-5 h-5 rounded-full ${theme.color} shadow-inner`}></span> <span>{theme.name}</span></button>
+                      ))}
+                    </div>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={enableSpiceLevels}
-                    onChange={(e) => {
-                      setEnableSpiceLevels(e.target.checked);
-                      saveCustomizerConfig({ enableSpiceLevels: e.target.checked });
-                    }}
-                    className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
-                  />
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Upload Restaurant Logo</label>
+                    <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { const b64 = reader.result as string; setLogoUrl(b64); saveCustomizerConfig({ logoUrl: b64 }); }; reader.readAsDataURL(file); } }} className="w-full border border-slate-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-600 bg-slate-50/50" />
+                    {logoUrl && <img src={logoUrl} alt="Logo Preview" className="mt-2 w-16 h-16 object-cover rounded-lg border" />}
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Upload Restaurant Cover Banner</label>
+                    <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { const b64 = reader.result as string; setCoverUrl(b64); saveCustomizerConfig({ coverUrl: b64 }); }; reader.readAsDataURL(file); } }} className="w-full border border-slate-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-600 bg-slate-50/50" />
+                    {coverUrl && <img src={coverUrl} alt="Banner Preview" className="mt-2 h-20 w-full object-cover rounded-lg border" />}
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Welcome Text</label>
+                    <input type="text" value={welcomeMsg} onChange={(e) => { setWelcomeMsg(e.target.value); saveCustomizerConfig({ welcomeMsg: e.target.value }); }} placeholder="Branding greeting card text..." className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-600 bg-slate-50/50" />
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Enable Spice Levels</label>
+                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">Show Mild/Medium/Hot selections on food details screen</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={enableSpiceLevels}
+                      onChange={(e) => {
+                        setEnableSpiceLevels(e.target.checked);
+                        saveCustomizerConfig({ enableSpiceLevels: e.target.checked });
+                      }}
+                      className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="lg:col-span-5 sticky top-6 lg:-ml-6 lg:mr-2">

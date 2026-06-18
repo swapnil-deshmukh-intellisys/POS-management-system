@@ -32,10 +32,13 @@ import {
   simulateOnlineOrder,
   submitFeedback,
   getReports,
-  getKitchenOrderById
+  getKitchenOrderById,
+  handleRealtime
 } from '../controllers/restaurant.controller';
 
 const router = Router();
+
+router.get('/realtime', handleRealtime);
 
 // Dashboard
 router.get('/dashboard', getDashboardMetrics);

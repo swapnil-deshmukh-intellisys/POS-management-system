@@ -54,6 +54,7 @@ export const Sidebar: React.FC = () => {
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Tables & Billing', path: '/restaurant/tables', icon: Calculator },
     { name: 'Kitchen Display', path: '/restaurant/kitchen', icon: Archive },
+    { name: 'Waiter Console', path: '/restaurant/waiter-dashboard', icon: UserCheck },
     { name: 'Digital Menu', path: '/restaurant/menu', icon: Layers },
     { name: 'Waiters Management', path: '/restaurant/waiters', icon: Users },
     { name: 'Reservations', path: '/restaurant/reservations', icon: UserCheck },
@@ -88,10 +89,9 @@ export const Sidebar: React.FC = () => {
             key={item.name}
             to={item.path}
             className={({ isActive }) =>
-              `flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${
-                isActive
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/10 font-semibold'
-                  : 'hover:bg-slate-800/40 hover:text-slate-200'
+              `flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${isActive
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/10 font-semibold'
+                : 'hover:bg-slate-800/40 hover:text-slate-200'
               }`
             }
           >

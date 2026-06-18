@@ -1033,6 +1033,13 @@ model KitchenOrder {
   paymentMethod     String?
   razorpayOrderId   String?
   razorpayPaymentId String?
+  estimatedPrepTime Int?               @default(15) @map("estimated_prep_time")
+  acceptedAt        DateTime?          @map("accepted_at")
+  preparingAt       DateTime?          @map("preparing_at")
+  readyAt           DateTime?          @map("ready_at")
+  pickedUpAt        DateTime?          @map("picked_up_at")
+  servedAt          DateTime?          @map("served_at")
+  waiterStatus      String?            @default("PENDING") @map("waiter_status") // PENDING, SERVING, SERVED
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   table             RestaurantTable?   @relation(fields: [tableId], references: [id], onDelete: SetNull)
@@ -1041,6 +1048,17 @@ model KitchenOrder {
   feedback          RestaurantFeedback?
 
   @@map("kitchen_orders")
+}
+
+model OrderNotification {
+  id        String   @id @default(uuid())
+  orderId   String   @map("order_id")
+  type      String   // NEW_ORDER, ORDER_READY, STATUS_CHANGE
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("order_notifications")
 }
 
 model KitchenOrderItem {

@@ -30,6 +30,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onSearchChange }) => {
   });
   const [unreadCount, setUnreadCount] = useState(0);
   const previousAlertCountRef = useRef<number | null>(null);
+  const [toastNotif, setToastNotif] = useState<{ id: string; message: string } | null>(null);
   const totalNotificationCount = unreadCount + categoryNotifications.length;
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -172,6 +173,42 @@ export const Navbar: React.FC<NavbarProps> = ({ onSearchChange }) => {
     };
   }, []);
 
+  useEffect(() => {
+    const sseUrl = window.location.hostname === 'localhost'
+      ? 'http://localhost:5000/api/restaurant/realtime'
+      : `${window.location.protocol}//${window.location.hostname}:5000/api/restaurant/realtime`;
+
+    console.log('[Navbar SSE] Connecting to', sseUrl);
+    const eventSource = new EventSource(sseUrl);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.type === 'NOTIFICATION') {
+          console.log('[Navbar SSE] Received notification:', payload.data);
+          playNotificationSound();
+          setToastNotif({
+            id: payload.data.id,
+            message: payload.data.message
+          });
+          setTimeout(() => {
+            setToastNotif(null);
+          }, 6000);
+        }
+      } catch (err) {
+        console.error('[Navbar SSE] Error handling message:', err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error('[Navbar SSE] Connection error:', err);
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, []);
+
   const openNotifications = () => {
     setShowNotifications((current) => !current);
   };
@@ -296,6 +333,23 @@ export const Navbar: React.FC<NavbarProps> = ({ onSearchChange }) => {
           ) : null}
         </div>
       </div>
+      {toastNotif && (
+        <div className="fixed top-4 right-4 z-[9999] bg-slate-900 border border-emerald-500 text-white rounded-xl shadow-2xl p-4 flex items-center gap-3 animate-bounce-in max-w-sm pointer-events-auto">
+          <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Bell className="w-4 h-4" />
+          </div>
+          <div className="text-left flex-1 min-w-0">
+            <h5 className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">Order Ready Alert</h5>
+            <p className="text-xs font-extrabold text-slate-200 mt-0.5 truncate">{toastNotif.message}</p>
+          </div>
+          <button 
+            onClick={() => setToastNotif(null)} 
+            className="text-slate-400 hover:text-white font-bold text-xs pl-2 shrink-0 border-l border-slate-800/60"
+          >
+            Close
+          </button>
+        </div>
+      )}
     </header>
   );
 };

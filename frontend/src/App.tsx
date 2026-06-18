@@ -41,6 +41,7 @@ import { RecipeManagement } from './pages/RecipeManagement';
 import { OnlineOrders } from './pages/OnlineOrders';
 import { RestaurantReports } from './pages/RestaurantReports';
 import { PublicQRMenu } from './pages/PublicQRMenu';
+import { WaiterDashboard } from './pages/WaiterDashboard';
 
 
 // Private Route Guard Component
@@ -109,6 +110,7 @@ const DashboardLayout: React.FC = () => {
             <Route path="/restaurant/reservations" element={<Reservations />} />
             <Route path="/restaurant/recipes" element={<RecipeManagement />} />
             <Route path="/restaurant/online-orders" element={<OnlineOrders />} />
+            <Route path="/restaurant/waiter-dashboard" element={<WaiterDashboard />} />
             <Route path="/restaurant/reports" element={<RestaurantReports />} />
             {/* Fallback to Dashboard */}
             <Route path="*" element={<Navigate to="/" replace />} />

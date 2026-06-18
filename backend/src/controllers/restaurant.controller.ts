@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import Razorpay from 'razorpay';
 import fs from 'fs';
 import path from 'path';
+import { addClient, removeClient, broadcast } from '../utils/realtime';
 
 // Utility: Deduct ingredients from stock based on recipe
 async function deductRecipeIngredients(menuItemId: string, quantity: number) {
@@ -552,6 +553,21 @@ export const placeQROrder = async (req: Request, res: Response) => {
       await deductRecipeIngredients(it.menuItemId, it.quantity);
     }
 
+    // Fetch full order with items and table details to broadcast to KDS
+    const fullOrder = await prisma.kitchenOrder.findUnique({
+      where: { id: order.id },
+      include: {
+        items: {
+          include: {
+            menuItem: true
+          }
+        },
+        table: true
+      }
+    });
+
+    broadcast('NEW_ORDER', fullOrder);
+
     return res.status(201).json(order);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -605,8 +621,12 @@ export const createPublicPaymentOrder = async (req: Request, res: Response) => {
 
 // 5. KITCHEN DISPLAY SYSTEM (KDS)
 export const getKitchenOrders = async (req: Request, res: Response) => {
-  const { restaurantId } = req.query;
+  const { restaurantId, includeServed } = req.query;
   try {
+    const statusFilter = includeServed === 'true'
+      ? undefined
+      : { not: 'SERVED' };
+
     const orders = await prisma.kitchenOrder.findMany({
       where: {
         OR: [
@@ -615,7 +635,7 @@ export const getKitchenOrders = async (req: Request, res: Response) => {
             table: { restaurantId: String(restaurantId) }
           }
         ],
-        status: { not: 'SERVED' } // Hide served ones from active KDS
+        status: statusFilter
       },
       include: {
         items: {
@@ -635,12 +655,61 @@ export const getKitchenOrders = async (req: Request, res: Response) => {
 
 export const updateOrderStatus = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { status } = req.body; // NEW, ACCEPTED, PREPARING, READY, SERVED, CANCELLED
+  const { status, estimatedPrepTime, waiterId, waiterStatus } = req.body; // NEW, ACCEPTED, PREPARING, READY, SERVING, SERVED, CANCELLED
   try {
+    const updateData: any = {};
+    if (status !== undefined) {
+      updateData.status = status;
+    }
+    if (estimatedPrepTime !== undefined) {
+      updateData.estimatedPrepTime = Number(estimatedPrepTime);
+    }
+    if (waiterId !== undefined) {
+      updateData.waiterId = waiterId;
+    }
+    if (waiterStatus !== undefined) {
+      updateData.waiterStatus = waiterStatus;
+    }
+    
+    const now = new Date();
+    if (status === 'ACCEPTED') {
+      updateData.acceptedAt = now;
+    } else if (status === 'PREPARING') {
+      updateData.preparingAt = now;
+    } else if (status === 'READY') {
+      updateData.readyAt = now;
+    } else if (status === 'SERVING') {
+      updateData.pickedUpAt = now;
+      updateData.waiterStatus = 'SERVING';
+    } else if (status === 'SERVED') {
+      updateData.servedAt = now;
+      updateData.waiterStatus = 'SERVED';
+    }
+
     const order = await prisma.kitchenOrder.update({
       where: { id },
-      data: { status }
+      data: updateData,
+      include: { table: true }
     });
+
+    // Create a waiter notification if status is READY
+    if (status === 'READY') {
+      const tableName = order.table?.tableNumber || 'Takeaway';
+      await prisma.orderNotification.create({
+        data: {
+          orderId: order.id,
+          type: 'ORDER_READY',
+          message: `${tableName.toUpperCase()} - ORDER READY - Serve Now`
+        }
+      });
+      // Also broadcast the notification
+      broadcast('NOTIFICATION', {
+        id: `notif_${Date.now()}`,
+        orderId: order.id,
+        type: 'ORDER_READY',
+        message: `${tableName.toUpperCase()} - ORDER READY - Serve Now`
+      });
+    }
 
     // If served, clean/free up the table if it was table order
     if (status === 'SERVED' && order.tableId) {
@@ -663,6 +732,20 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
         });
       }
     }
+
+    // Broadcast status change
+    broadcast('ORDER_STATUS_UPDATE', {
+      id: order.id,
+      status: order.status,
+      estimatedPrepTime: order.estimatedPrepTime,
+      acceptedAt: order.acceptedAt,
+      preparingAt: order.preparingAt,
+      readyAt: order.readyAt,
+      pickedUpAt: order.pickedUpAt,
+      servedAt: order.servedAt,
+      waiterStatus: order.waiterStatus,
+      waiterId: order.waiterId
+    });
 
     return res.status(200).json(order);
   } catch (err: any) {
@@ -1079,4 +1162,26 @@ export const uploadImage = async (req: Request, res: Response) => {
     console.error('Error uploading image:', error);
     return res.status(500).json({ message: 'Failed to upload image', error: error.message });
   }
+};
+
+export const handleRealtime = async (req: Request, res: Response) => {
+  const clientId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no'
+  });
+  
+  res.write('\n');
+  addClient(clientId, res);
+  
+  const keepAliveInterval = setInterval(() => {
+    res.write(': keep-alive\n\n');
+  }, 30000);
+  
+  req.on('close', () => {
+    clearInterval(keepAliveInterval);
+    removeClient(clientId);
+  });
 };
