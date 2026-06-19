@@ -283,10 +283,8 @@ export const PublicQRMenu: React.FC = () => {
 
   // Order transaction states
   const [orderPlaced, setOrderPlaced] = useState<any>(null);
-  const [trackStatus, setTrackStatus] = useState<'Preparing' | 'Ready' | 'Waiter On The Way' | 'Served'>('Preparing');
+  const [trackStatus, setTrackStatus] = useState<'ORDER RECEIVED' | 'COOKING' | 'READY' | 'SERVED'>('ORDER RECEIVED');
   const [estTimeRemaining, setEstTimeRemaining] = useState<number | null>(null);
-  const [initialPrepTime, setInitialPrepTime] = useState<number | null>(null);
-  const [currentPrepTime, setCurrentPrepTime] = useState<number | null>(null);
   const [razorpayMethod, setRazorpayMethod] = useState<'UPI' | 'Card' | 'Net' | 'Wallet' | 'QR'>('QR');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [cartNotification, setCartNotification] = useState<string | null>(null);
@@ -341,7 +339,7 @@ export const PublicQRMenu: React.FC = () => {
     }
     handleConfirmRazorpayPayment(activeMethod as any);
   };
-
+  
   // Real-time EventSource listener for KDS status updates
   useEffect(() => {
     if (!orderPlaced) return;
@@ -349,22 +347,11 @@ export const PublicQRMenu: React.FC = () => {
     if (!orderId) return;
 
     if (orderId.toString().startsWith('ord-')) {
-      const steps: ('Preparing' | 'Ready' | 'Waiter On The Way' | 'Served')[] = ['Preparing', 'Ready', 'Waiter On The Way', 'Served'];
-      setTrackStatus('Preparing');
-      let stepIndex = 0;
-      const interval = setInterval(() => {
-        stepIndex++;
-        if (stepIndex < steps.length) {
-          setTrackStatus(steps[stepIndex]);
-        } else {
-          clearInterval(interval);
-        }
-      }, 5000);
-      return () => clearInterval(interval);
+      setTrackStatus('ORDER RECEIVED');
+      return;
     }
 
     const sseUrl = `${API_BASE}/restaurant/realtime`;
-    console.log('[SSE] Connecting to', sseUrl);
     const eventSource = new EventSource(sseUrl);
 
     eventSource.onmessage = (event) => {
@@ -372,19 +359,16 @@ export const PublicQRMenu: React.FC = () => {
         const payload = JSON.parse(event.data);
         if (payload.type === 'ORDER_STATUS_UPDATE' && payload.data.id === orderId) {
           const { status, estimatedPrepTime, acceptedAt } = payload.data;
-          console.log('[SSE] Received status update:', status);
           
-          if (status === 'NEW' || status === 'ACCEPTED' || status === 'PREPARING') setTrackStatus('Preparing');
-          else if (status === 'READY') setTrackStatus('Ready');
-          else if (status === 'SERVING') setTrackStatus('Waiter On The Way');
-          else if (status === 'SERVED') setTrackStatus('Served');
+          if (status === 'NEW' || status === 'ACCEPTED') setTrackStatus('ORDER RECEIVED');
+          else if (status === 'PREPARING') setTrackStatus('COOKING');
+          else if (status === 'READY') setTrackStatus('READY');
+          else if (status === 'SERVED' || status === 'SERVING') setTrackStatus('SERVED');
           
           if (estimatedPrepTime) {
             const created = acceptedAt ? new Date(acceptedAt).getTime() : Date.now();
             const elapsed = Math.floor((Date.now() - created) / 60000);
             setEstTimeRemaining(Math.max(0, estimatedPrepTime - elapsed));
-            setInitialPrepTime(prev => prev === null ? estimatedPrepTime : prev);
-            setCurrentPrepTime(estimatedPrepTime);
           }
         }
       } catch (err) {
@@ -402,17 +386,15 @@ export const PublicQRMenu: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           if (data && data.status) {
-            if (data.status === 'NEW' || data.status === 'ACCEPTED' || data.status === 'PREPARING') setTrackStatus('Preparing');
-            else if (data.status === 'READY') setTrackStatus('Ready');
-            else if (data.status === 'SERVING') setTrackStatus('Waiter On The Way');
-            else if (data.status === 'SERVED') setTrackStatus('Served');
+            if (data.status === 'NEW' || data.status === 'ACCEPTED') setTrackStatus('ORDER RECEIVED');
+            else if (data.status === 'PREPARING') setTrackStatus('COOKING');
+            else if (data.status === 'READY') setTrackStatus('READY');
+            else if (data.status === 'SERVED' || data.status === 'SERVING') setTrackStatus('SERVED');
             
             if (data.estimatedPrepTime) {
               const created = data.acceptedAt ? new Date(data.acceptedAt).getTime() : new Date(data.createdAt).getTime();
               const elapsed = Math.floor((Date.now() - created) / 60000);
               setEstTimeRemaining(Math.max(0, data.estimatedPrepTime - elapsed));
-              setInitialPrepTime(prev => prev === null ? data.estimatedPrepTime : prev);
-              setCurrentPrepTime(data.estimatedPrepTime);
             }
           }
         }
@@ -420,6 +402,7 @@ export const PublicQRMenu: React.FC = () => {
         console.error('Error fetching order status:', err);
       }
     };
+
     checkStatus();
 
     const timerInterval = setInterval(() => {
@@ -946,13 +929,86 @@ export const PublicQRMenu: React.FC = () => {
     setCustomerEmail('');
     setSearchQuery('');
     setOrderPlaced(null);
-    setTrackStatus('Preparing');
+    setTrackStatus('ORDER RECEIVED');
     setRazorpayMethod('QR');
     setSelectedPaymentMethod('QR');
     setSelectedUPI('GPay');
     setSelectedQR('QR');
     setSelectedCard('4321 8876 5432 1098');
     setSelectedWallet('Paytm');
+  };
+
+  const getPdfUrl = () => {
+    if (orderPlaced?.invoice?.pdfUrl) {
+      const baseUrl = window.location.hostname === 'localhost'
+        ? 'http://localhost:5000'
+        : `${window.location.protocol}//${window.location.hostname}:5000`;
+      return `${baseUrl}${orderPlaced.invoice.pdfUrl}`;
+    }
+    return null;
+  };
+
+  const handleViewInvoice = () => {
+    const url = getPdfUrl();
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      alert('Invoice PDF not available');
+    }
+  };
+
+  const handleDownloadInvoice = () => {
+    const url = getPdfUrl();
+    if (url) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', orderPlaced?.invoice?.invoiceNumber ? `${orderPlaced.invoice.invoiceNumber}.pdf` : 'invoice.pdf');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      alert('Invoice PDF not available');
+    }
+  };
+
+  const handlePrintInvoice = () => {
+    const url = getPdfUrl();
+    if (url) {
+      const printWindow = window.open(url, '_blank');
+      if (printWindow) {
+        printWindow.focus();
+        printWindow.print();
+      }
+    } else {
+      alert('Invoice PDF not available');
+    }
+  };
+
+  const handleWhatsAppInvoice = async () => {
+    const invoiceId = orderPlaced?.invoice?.id;
+    if (!invoiceId) {
+      alert('Invoice details not found to send WhatsApp notification');
+      return;
+    }
+    const phone = customerMobile || prompt('Please enter mobile number to send WhatsApp invoice:');
+    if (!phone) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/invoice/send-whatsapp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceId, phone })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert(data.message || 'WhatsApp invoice sent successfully');
+      } else {
+        alert(data.message || 'Failed to send WhatsApp invoice');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Error sending WhatsApp invoice');
+    }
   };
 
 
@@ -1435,11 +1491,11 @@ export const PublicQRMenu: React.FC = () => {
       })()}
 
       {screen === 'status' && (() => {
-        const steps = ['Preparing', 'Ready', 'Waiter On The Way', 'Served'] as const;
+        const steps = ['ORDER RECEIVED', 'COOKING', 'READY', 'SERVED'] as const;
         const curIdx = steps.indexOf(trackStatus);
         return (
           <div className="flex-grow flex flex-col justify-between p-4 bg-slate-950 text-slate-200 text-left h-full max-h-full overflow-hidden">
-            <div className="flex-1 overflow-y-auto space-y-5 pb-24 scrollbar-none flex flex-col items-center text-center pt-6">
+            <div className="flex-grow flex flex-col justify-center items-center text-center pt-6 space-y-4">
               <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full flex items-center justify-center shadow-lg animate-pulse mb-2">
                 <Clock className="w-6 h-6 animate-spin [animation-duration:8s]" />
               </div>
@@ -1448,32 +1504,17 @@ export const PublicQRMenu: React.FC = () => {
                 <div className="flex justify-between text-slate-400"><span>Order ID:</span><span className="font-mono text-emerald-400 font-extrabold">{orderPlaced?.id || orderPlaced?.orderId}</span></div>
                 <div className="flex justify-between text-slate-400"><span>Table Assigned:</span><span className="text-white font-extrabold">{menu?.table?.tableNumber || 'Table'}</span></div>
                 <div className="flex justify-between text-slate-400"><span>Diner Name:</span><span className="text-white font-extrabold">{customerName || 'Harry'}</span></div>
-                <div className="flex justify-between text-slate-400"><span>Preparation Level:</span><span className="text-white font-extrabold capitalize">{trackStatus}</span></div>
+                <div className="flex justify-between text-slate-400"><span>Preparation Level:</span><span className="text-white font-extrabold">{trackStatus}</span></div>
                  {estTimeRemaining !== null && estTimeRemaining > 0 && (
                   <div className="flex justify-between text-slate-400 border-t border-slate-800 pt-1.5">
                     <span>Est. Time Remaining:</span>
                     <span className="text-amber-400 font-extrabold">{estTimeRemaining} mins</span>
                   </div>
                 )}
-                {currentPrepTime !== null && initialPrepTime !== null && currentPrepTime > initialPrepTime && (
-                  <div className="border-t border-red-500/30 pt-1.5 space-y-1 w-full">
-                    <div className="text-[9px] text-red-400 font-black animate-pulse text-left">
-                      ⚠️ Your order is taking slightly longer than expected.
-                    </div>
-                    <div className="flex justify-between text-slate-400">
-                      <span>Expected Preparation:</span>
-                      <span className="text-white font-bold">{initialPrepTime} Min</span>
-                    </div>
-                    <div className="flex justify-between text-red-400">
-                      <span>Updated Prep Time:</span>
-                      <span className="font-black">{currentPrepTime} Min</span>
-                    </div>
-                  </div>
-                )}
               </div>
-
-              <div className="relative w-full pl-6 space-y-3.5 text-left pt-2">
-                <div className="absolute left-[9px] top-2 bottom-2 w-0.5 bg-slate-800"></div>
+ 
+              <div className="relative w-full pl-6 space-y-4 text-left pt-2">
+                <div className="absolute left-[9px] top-2.5 bottom-2.5 w-0.5 bg-slate-800"></div>
                 {steps.map((st, idx) => {
                   const isAct = trackStatus === st;
                   const isDone = curIdx >= idx;
@@ -1481,13 +1522,13 @@ export const PublicQRMenu: React.FC = () => {
                     <div key={st} className="relative flex items-center gap-3">
                       <div className={`absolute left-[-20px] w-2.5 h-2.5 rounded-full border transition-all ${isAct ? 'bg-emerald-500 border-emerald-500 scale-110 shadow-lg shadow-emerald-500/40' : isDone ? 'bg-emerald-600 border-emerald-600' : 'bg-slate-900 border-slate-800'
                         }`} />
-                      <span className={`text-[9px] font-bold ${isAct ? 'text-emerald-400' : isDone ? 'text-slate-300' : 'text-slate-600'}`}>{st === 'Preparing' ? 'Preparing Meal' : st === 'Ready' ? 'Food Ready' : st === 'Waiter On The Way' ? 'Waiter On The Way' : 'Served to Table'}</span>
+                      <span className={`text-[9px] font-bold ${isAct ? 'text-emerald-400' : isDone ? 'text-slate-300' : 'text-slate-600'}`}>{st}</span>
                     </div>
                   );
                 })}
               </div>
             </div>
-            <div className="pt-2 border-t border-slate-800 flex flex-col gap-2 w-full">
+            <div className="pt-2 border-t border-slate-800 flex flex-col gap-2 w-full shrink-0">
               <button onClick={() => setScreen('invoice')} className="w-full bg-slate-900 border border-slate-800 text-slate-300 font-extrabold py-2 rounded-lg text-[9px] uppercase tracking-wider text-center">
                 View Invoice Receipt
               </button>
@@ -1742,7 +1783,7 @@ export const PublicQRMenu: React.FC = () => {
         const discount = subtotal * 0.10;
         const gst = (subtotal - discount) * 0.18;
         const grandTotal = subtotal + gst - discount;
-        const invoiceNum = `INV-${Date.now().toString().slice(-6)}`;
+        const invoiceNum = orderPlaced?.invoice?.invoiceNumber || orderPlaced?.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`;
         return (
           <div className="flex-1 flex flex-col justify-between p-4 bg-[#f8fafc] text-[#1e293b] text-left h-full max-h-full overflow-hidden">
             <div className="flex-1 overflow-y-auto space-y-4 pb-24 scrollbar-none text-center">
@@ -1796,15 +1837,35 @@ export const PublicQRMenu: React.FC = () => {
             </div>
 
             <div className="pt-2 border-t space-y-2 bg-white">
-              <button
-                onClick={() => alert('PDF Invoice generated and downloaded successfully (Simulated)')}
-                className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-extrabold py-2 px-3 rounded-lg text-[9px] uppercase tracking-wider text-center flex justify-center items-center gap-1"
-              >
-                Download PDF Invoice
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={handleViewInvoice}
+                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-extrabold py-2 px-3 rounded-lg text-[9px] uppercase tracking-wider text-center"
+                >
+                  View Invoice
+                </button>
+                <button
+                  onClick={handleDownloadInvoice}
+                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-extrabold py-2 px-3 rounded-lg text-[9px] uppercase tracking-wider text-center"
+                >
+                  Download PDF
+                </button>
+                <button
+                  onClick={handlePrintInvoice}
+                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-extrabold py-2 px-3 rounded-lg text-[9px] uppercase tracking-wider text-center"
+                >
+                  Print Invoice
+                </button>
+                <button
+                  onClick={handleWhatsAppInvoice}
+                  className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-extrabold py-2 px-3 rounded-lg text-[9px] uppercase tracking-wider text-center"
+                >
+                  WhatsApp Invoice
+                </button>
+              </div>
               <button
                 onClick={handleResetAll}
-                className={`w-full ${style.accent} text-white font-extrabold py-2 px-3 rounded-lg text-[9px] uppercase tracking-wider text-center`}
+                className={`w-full ${style.accent} text-white font-extrabold py-2.5 px-3 rounded-lg text-[9px] uppercase tracking-wider text-center`}
               >
                 Order Again / Close
               </button>

@@ -66,7 +66,7 @@ export const Dashboard: React.FC = () => {
     };
   }, []);
 
-  if (isLoading || !data) {
+  if (isLoading || !data || !data.timeframes || !data.health) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 bg-slate-50">
         <Activity className="w-10 h-10 text-emerald-600 animate-spin" />

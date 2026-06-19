@@ -18,7 +18,7 @@ export const WaiterManagement: React.FC = () => {
   const { user, apiRequest } = useAuth();
   const [waiters, setWaiters] = useState<Waiter[]>([]);
   const [tables, setTables] = useState<any[]>([]);
-  
+
   const [selectedWaiter, setSelectedWaiter] = useState<Waiter | null>(null);
   const [loading, setLoading] = useState(true);
   const [actioning, setActioning] = useState(false);
@@ -208,7 +208,7 @@ export const WaiterManagement: React.FC = () => {
 
   const getAssignedWaiterForTable = (tableNumber: string): Waiter | null => {
     const cleanNum = tableNumber.replace(/\D/g, '').trim();
-    return waiters.find(w => 
+    return waiters.find(w =>
       w.tableAssignments.some(a => {
         const cleanAssign = a.tableNumber.replace(/\D/g, '').trim();
         return cleanAssign === cleanNum;
@@ -225,7 +225,7 @@ export const WaiterManagement: React.FC = () => {
 
   return (
     <div className="p-6 text-black font-sans bg-white rounded-2xl border border-neutral-200 max-w-6xl mx-auto shadow-sm space-y-6">
-      
+
       {/* Toast Alert Popups */}
       <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm w-full">
         {toasts.map(toast => {
@@ -266,7 +266,7 @@ export const WaiterManagement: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
+
           {/* LEFT PANEL: WAITSTAFF LIST */}
           <div className="lg:col-span-4 flex flex-col h-[480px]">
             <h2 className="text-xs font-normal uppercase tracking-wider text-black pb-2 border-b border-neutral-100 flex-shrink-0">
@@ -276,7 +276,7 @@ export const WaiterManagement: React.FC = () => {
             <div className="flex-1 overflow-y-auto mt-3 space-y-2 pr-1 scrollbar-none">
               {waiters.map(waiter => {
                 const isSelected = selectedWaiter?.id === waiter.id;
-                
+
                 // Get compact table list sorted numerically, e.g. T1 | T2 | T3
                 const uniqueDigits = Array.from(new Set(
                   waiter.tableAssignments
@@ -292,19 +292,17 @@ export const WaiterManagement: React.FC = () => {
                   <div
                     key={waiter.id}
                     onClick={() => setSelectedWaiter(isSelected ? null : waiter)}
-                    className={`px-4 py-3.5 rounded-xl border transition-all duration-200 cursor-pointer flex items-center justify-between gap-4 ${
-                      isSelected 
-                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm' 
+                    className={`px-4 py-3.5 rounded-xl border transition-all duration-200 cursor-pointer flex items-center justify-between gap-4 ${isSelected
+                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
                         : 'bg-white border-neutral-200 text-black hover:border-emerald-600/40 hover:bg-neutral-50/35'
-                    }`}
+                      }`}
                   >
                     <span className={`text-sm font-semibold truncate flex-1 ${isSelected ? 'text-white' : 'text-black'}`}>
                       {waiter.name}
                     </span>
                     {tableChips && (
-                      <span className={`text-sm font-bold whitespace-nowrap overflow-x-auto scrollbar-none max-w-[150px] shrink-0 text-right ${
-                        isSelected ? 'text-white' : 'text-emerald-600'
-                      }`}>
+                      <span className={`text-sm font-bold whitespace-nowrap overflow-x-auto scrollbar-none max-w-[150px] shrink-0 text-right ${isSelected ? 'text-white' : 'text-emerald-600'
+                        }`}>
                         {tableChips}
                       </span>
                     )}
@@ -333,11 +331,10 @@ export const WaiterManagement: React.FC = () => {
                       key={table.id}
                       onClick={() => handleTableClick(table)}
                       disabled={actioning}
-                      className={`w-full py-2.5 px-3 rounded-xl border text-center transition-all duration-200 cursor-pointer flex flex-col items-center justify-center min-h-[52px] shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-[0.98] ${
-                        assignedWaiter 
-                          ? 'border-emerald-600 bg-emerald-600 text-white' 
+                      className={`w-full py-2.5 px-3 rounded-xl border text-center transition-all duration-200 cursor-pointer flex flex-col items-center justify-center min-h-[52px] shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-[0.98] ${assignedWaiter
+                          ? 'border-emerald-600 bg-emerald-600 text-white'
                           : 'border-emerald-600/40 bg-white text-black hover:border-emerald-600'
-                      }`}
+                        }`}
                     >
                       <span className={`font-bold text-xs ${assignedWaiter ? 'text-white' : 'text-black'}`}>
                         Table {displayDigits || table.tableNumber}
@@ -367,7 +364,7 @@ export const WaiterManagement: React.FC = () => {
             <h3 className="font-normal text-black text-sm uppercase tracking-wider border-b border-neutral-100 pb-2">
               Waiter Registration
             </h3>
-            
+
             <form onSubmit={handleAddWaiter} className="space-y-4 text-xs font-normal text-slate-700">
               <div>
                 <label className="block mb-1 text-[10px] uppercase tracking-wider font-normal text-slate-500">Full Name *</label>

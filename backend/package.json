@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
+    "@types/pdfkit": "^0.17.6",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -22,6 +23,7 @@
     "morgan": "^1.10.0",
     "nodemailer": "^8.0.11",
     "openai": "^6.42.0",
+    "pdfkit": "^0.19.1",
     "razorpay": "^2.9.6"
   },
   "devDependencies": {

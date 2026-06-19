@@ -51,7 +51,8 @@ import {
   editWaiter,
   deleteWaiter,
   editTable,
-  deleteTable
+  deleteTable,
+  seedDummyReadyOrders
 } from '../controllers/restaurant.controller';
 
 const router = Router();
@@ -108,6 +109,7 @@ router.get('/waiters/assignment-history', getAssignmentHistory);
 router.get('/service-tasks', getServiceTasks);
 router.put('/service-tasks/:id/pickup', pickupServiceTask);
 router.put('/service-tasks/:id/serve', serveServiceTask);
+router.post('/seed-ready-orders', seedDummyReadyOrders);
 
 // Waitstaff Notifications
 router.get('/waiter-notifications', getWaiterNotifications);

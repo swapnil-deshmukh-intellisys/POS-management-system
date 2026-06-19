@@ -202,6 +202,79 @@ const seedRestaurantData = async (restaurantId: string) => {
         }
       });
     }
+
+    // 7. Seed template Kitchen Orders so KDS is populated
+    const dbMenuItems = await prisma.menuItem.findMany({
+      where: { category: { restaurantId } }
+    });
+    if (tableList.length > 0 && dbMenuItems.length > 0) {
+      // Order 1 (NEW)
+      const order1 = await prisma.kitchenOrder.create({
+        data: {
+          tableId: tableList[0].id,
+          source: 'QR',
+          status: 'NEW',
+          notes: 'Extra cheese, medium spice',
+          totalAmount: 17.98,
+          createdAt: new Date(Date.now() - 5 * 60 * 1000),
+          items: {
+            create: [
+              { menuItemId: dbMenuItems.find(i => i.name.includes('Pizza'))?.id || dbMenuItems[0].id, quantity: 1, unitPrice: 11.99 },
+              { menuItemId: dbMenuItems.find(i => i.name.includes('Garlic'))?.id || dbMenuItems[0].id, quantity: 1, unitPrice: 5.99 }
+            ]
+          }
+        }
+      });
+      // Update table to occupied
+      await prisma.restaurantTable.update({
+        where: { id: tableList[0].id },
+        data: { status: 'OCCUPIED', activeOrderId: order1.id }
+      });
+
+      // Order 2 (PREPARING)
+      const order2 = await prisma.kitchenOrder.create({
+        data: {
+          tableId: tableList[1].id,
+          source: 'QR',
+          status: 'PREPARING',
+          preparingAt: new Date(Date.now() - 10 * 60 * 1000),
+          totalAmount: 12.97,
+          createdAt: new Date(Date.now() - 15 * 60 * 1000),
+          items: {
+            create: [
+              { menuItemId: dbMenuItems.find(i => i.name.includes('Burger'))?.id || dbMenuItems[0].id, quantity: 1, unitPrice: 8.99 },
+              { menuItemId: dbMenuItems.find(i => i.name.includes('Coca Cola'))?.id || dbMenuItems[0].id, quantity: 2, unitPrice: 1.99 }
+            ]
+          }
+        }
+      });
+      await prisma.restaurantTable.update({
+        where: { id: tableList[1].id },
+        data: { status: 'OCCUPIED', activeOrderId: order2.id }
+      });
+
+      // Order 3 (READY)
+      const order3 = await prisma.kitchenOrder.create({
+        data: {
+          tableId: tableList[2].id,
+          source: 'QR',
+          status: 'READY',
+          readyAt: new Date(Date.now() - 2 * 60 * 1000),
+          totalAmount: 9.98,
+          createdAt: new Date(Date.now() - 20 * 60 * 1000),
+          items: {
+            create: [
+              { menuItemId: dbMenuItems.find(i => i.name.includes('Burger'))?.id || dbMenuItems[0].id, quantity: 1, unitPrice: 7.99 },
+              { menuItemId: dbMenuItems.find(i => i.name.includes('Coca Cola'))?.id || dbMenuItems[0].id, quantity: 1, unitPrice: 1.99 }
+            ]
+          }
+        }
+      });
+      await prisma.restaurantTable.update({
+        where: { id: tableList[2].id },
+        data: { status: 'OCCUPIED', activeOrderId: order3.id }
+      });
+    }
   } catch (err) {
     console.error('Error seeding restaurant data:', err);
   }

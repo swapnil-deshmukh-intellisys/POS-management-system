@@ -98,11 +98,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const successfulIds = resData.results
               .filter((res: any) => res.status === 'SUCCESS')
               .map((res: any) => res.localId);
-            
+
             const remaining = offline.filter((o: any) => !successfulIds.includes(o.localId));
             localStorage.setItem('offlineInvoices', JSON.stringify(remaining));
             console.log('[Auto Sync] Successfully synced offline invoices. Remaining:', remaining.length);
-            
+
             // Dispatch custom event to notify listeners (e.g. InvoiceCenter)
             window.dispatchEvent(new Event('offline-sync-complete'));
           }
@@ -115,7 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (navigator.onLine) {
       syncOffline();
     }
-    
+
     const handleOnline = () => {
       console.log('[Auto Sync] Network is back online, triggering sync...');
       syncOffline();
@@ -236,7 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (method !== 'GET') {
         throw err;
       }
-      
+
       // Dynamic fallbacks matching original screenshots
       if (endpoint === '/dashboard/metrics') {
         return {

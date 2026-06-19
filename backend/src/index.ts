@@ -5,6 +5,7 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
+import path from 'path';
 
 // Trigger hot reload for dotenv updates: 2026-06-04
 
@@ -38,6 +39,7 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(morgan('dev'));
+app.use('/public', express.static(path.join(__dirname, '..', 'public')));
 
 // Health Check
 app.get('/api/health', (req, res) => {

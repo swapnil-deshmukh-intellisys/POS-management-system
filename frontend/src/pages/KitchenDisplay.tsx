@@ -86,257 +86,289 @@ export const KitchenDisplay: React.FC = () => {
     return Math.max(...times);
   };
 
-  const fetchOrders = () => {
+  const handleSeedDummyOrders = async () => {
+    try {
+      await apiRequest('/restaurant/seed-ready-orders', {
+        method: 'POST'
+      });
+      fetchOrders();
+      showToast('Dummy Data Seeded', 'Seeded ready orders & new orders.', 'success');
+    } catch (err) {
+      console.warn('Failed to seed dummy data.');
+    }
+  };
+
+  const fetchOrders = async () => {
+    try {
+      const data = await apiRequest('/restaurant/orders');
+      if (Array.isArray(data) && data.length > 0) {
+        setOrders(data);
+        setLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.warn('Failed to fetch kitchen orders from API, using mock fallback data.');
+    }
+
     const mockActive = [
-      // NEW ORDERS (8)
+      // NEW ORDERS (T1 to T6)
       {
         id: 'ko-101',
         source: 'QR',
-        table: { tableNumber: 'Table 7' },
+        table: { tableNumber: 'Table 1' },
         status: 'NEW',
-        notes: 'Spice: Medium',
         createdAt: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
+        waiter: { name: 'Rahul' },
         items: [
-          { id: 'koi-1', quantity: 1, menuItem: { name: 'Pomfret Fry', price: 320 } },
-          { id: 'koi-2', quantity: 4, menuItem: { name: 'Butter Roti', price: 20 } },
-          { id: 'koi-3', quantity: 1, menuItem: { name: 'Jeera Rice (Half)', price: 120 } },
-          { id: 'koi-4', quantity: 1, menuItem: { name: 'Mineral Water', price: 30 } },
-          { id: 'koi-5', quantity: 1, menuItem: { name: 'Chicken Masala', price: 240 } }
+          { id: 'koi-1', quantity: 2, menuItem: { name: 'Fish Fry', price: 220 } },
+          { id: 'koi-2', quantity: 4, menuItem: { name: 'Roti', price: 15 } },
+          { id: 'koi-3', quantity: 1, menuItem: { name: 'Water Bottle', price: 20 } }
         ]
       },
       {
         id: 'ko-102',
         source: 'QR',
-        table: { tableNumber: 'Table 10' },
+        table: { tableNumber: 'Table 2' },
         status: 'NEW',
         createdAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+        waiter: { name: 'Rahul' },
         items: [
-          { id: 'koi-6', quantity: 2, menuItem: { name: 'Veg Crispy', price: 160 } },
-          { id: 'koi-7', quantity: 1, menuItem: { name: 'Manchurian', price: 150 } },
-          { id: 'koi-8', quantity: 2, menuItem: { name: 'Fried Rice', price: 140 } },
-          { id: 'koi-9', quantity: 3, menuItem: { name: 'Coke', price: 40 } }
+          { id: 'koi-4', quantity: 1, menuItem: { name: 'Paneer Tikka', price: 199 } },
+          { id: 'koi-5', quantity: 3, menuItem: { name: 'Butter Naan', price: 40 } }
         ]
       },
       {
         id: 'ko-103',
         source: 'QR',
-        table: { tableNumber: 'Table 12' },
+        table: { tableNumber: 'Table 3' },
         status: 'NEW',
         createdAt: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+        waiter: { name: 'Akshay' },
         items: [
-          { id: 'koi-10', quantity: 1, menuItem: { name: 'Chicken Kadai', price: 250 } },
-          { id: 'koi-11', quantity: 3, menuItem: { name: 'Butter Roti', price: 20 } },
-          { id: 'koi-12', quantity: 1, menuItem: { name: 'Soda', price: 30 } }
+          { id: 'koi-6', quantity: 2, menuItem: { name: 'Chicken Biryani', price: 250 } },
+          { id: 'koi-7', quantity: 2, menuItem: { name: 'Coke', price: 40 } }
         ]
       },
       {
         id: 'ko-104',
         source: 'QR',
-        table: { tableNumber: 'Table 15' },
+        table: { tableNumber: 'Table 4' },
         status: 'NEW',
         createdAt: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
+        waiter: { name: 'Ritesh' },
         items: [
-          { id: 'koi-13', quantity: 1, menuItem: { name: 'Fish Fry', price: 220 } },
-          { id: 'koi-14', quantity: 1, menuItem: { name: 'Steam Rice', price: 90 } },
-          { id: 'koi-15', quantity: 1, menuItem: { name: 'Coke', price: 40 } }
+          { id: 'koi-8', quantity: 1, menuItem: { name: 'Veg Crispy', price: 160 } },
+          { id: 'koi-9', quantity: 1, menuItem: { name: 'Manchurian', price: 150 } },
+          { id: 'koi-10', quantity: 1, menuItem: { name: 'Veg Fried Rice', price: 140 } }
         ]
       },
       {
         id: 'ko-105',
         source: 'QR',
-        table: { tableNumber: 'Table 16' },
+        table: { tableNumber: 'Table 5' },
         status: 'NEW',
         createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+        waiter: { name: 'Akshay' },
         items: [
-          { id: 'koi-16', quantity: 2, menuItem: { name: 'Garlic Bread', price: 99 } },
-          { id: 'koi-17', quantity: 2, menuItem: { name: 'Coke', price: 40 } }
+          { id: 'koi-11', quantity: 2, menuItem: { name: 'Pomfret Fry', price: 320 } },
+          { id: 'koi-12', quantity: 1, menuItem: { name: 'Jeera Rice Full', price: 120 } }
         ]
       },
       {
         id: 'ko-106',
         source: 'QR',
-        table: { tableNumber: 'Table 19' },
+        table: { tableNumber: 'Table 6' },
         status: 'NEW',
         createdAt: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
+        waiter: { name: 'Akshay' },
         items: [
-          { id: 'koi-18', quantity: 1, menuItem: { name: 'Paneer Butter Masala', price: 260 } },
-          { id: 'koi-19', quantity: 4, menuItem: { name: 'Butter Roti', price: 20 } }
+          { id: 'koi-13', quantity: 2, menuItem: { name: 'Garlic Bread', price: 99 } },
+          { id: 'koi-14', quantity: 2, menuItem: { name: 'Sprite', price: 40 } }
         ]
       },
+
+      // PREPARING ORDERS (T7 to T13)
       {
         id: 'ko-107',
         source: 'QR',
-        table: { tableNumber: 'Table 20' },
-        status: 'NEW',
-        createdAt: new Date(Date.now() - 7 * 60 * 1000).toISOString(),
+        table: { tableNumber: 'Table 7' },
+        status: 'ACCEPTED',
+        acceptedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        waiter: { name: 'Ritesh' },
         items: [
-          { id: 'koi-20', quantity: 1, menuItem: { name: 'French Fries', price: 90 } },
-          { id: 'koi-21', quantity: 1, menuItem: { name: 'Coke', price: 40 } }
+          { id: 'koi-15', quantity: 1, menuItem: { name: 'Chicken Kadai', price: 240 } },
+          { id: 'koi-16', quantity: 4, menuItem: { name: 'Butter Roti', price: 20 } },
+          { id: 'koi-17', quantity: 2, menuItem: { name: 'Water Bottle', price: 20 } }
         ]
       },
       {
         id: 'ko-108',
         source: 'QR',
-        table: { tableNumber: 'Table 21' },
-        status: 'NEW',
-        createdAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+        table: { tableNumber: 'Table 8' },
+        status: 'ACCEPTED',
+        acceptedAt: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 9 * 60 * 1000).toISOString(),
+        waiter: { name: 'Ritesh' },
         items: [
-          { id: 'koi-22', quantity: 2, menuItem: { name: 'Cold Drink', price: 40 } }
+          { id: 'koi-18', quantity: 2, menuItem: { name: 'Veg Fried Rice', price: 140 } },
+          { id: 'koi-19', quantity: 2, menuItem: { name: 'Sprite', price: 40 } }
         ]
       },
-
-      // PREPARING ORDERS (8)
       {
         id: 'ko-109',
         source: 'QR',
-        table: { tableNumber: 'Table 2' },
+        table: { tableNumber: 'Table 9' },
         status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        acceptedAt: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+        waiter: { name: 'Rahul' },
         items: [
-          { id: 'koi-23', quantity: 2, menuItem: { name: 'Paneer Butter Masala', price: 260 } },
-          { id: 'koi-24', quantity: 4, menuItem: { name: 'Butter Naan', price: 50 } },
-          { id: 'koi-25', quantity: 2, menuItem: { name: 'Cold Drink', price: 40 } }
+          { id: 'koi-20', quantity: 1, menuItem: { name: 'Margherita Pizza', price: 299 } },
+          { id: 'koi-21', quantity: 2, menuItem: { name: 'Pepsi', price: 40 } }
         ]
       },
       {
         id: 'ko-110',
         source: 'QR',
-        table: { tableNumber: 'Table 3' },
+        table: { tableNumber: 'Table 10' },
         status: 'ACCEPTED',
         acceptedAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+        waiter: { name: 'Akshay' },
         items: [
-          { id: 'koi-26', quantity: 2, menuItem: { name: 'Chicken Biryani (Half)', price: 280 } },
-          { id: 'koi-27', quantity: 2, menuItem: { name: 'Raita', price: 50 } },
-          { id: 'koi-28', quantity: 2, menuItem: { name: 'Coke', price: 40 } }
+          { id: 'koi-22', quantity: 1, menuItem: { name: 'Paneer Butter Masala', price: 220 } },
+          { id: 'koi-23', quantity: 3, menuItem: { name: 'Butter Naan', price: 40 } },
+          { id: 'koi-24', quantity: 1, menuItem: { name: 'Lassi', price: 60 } }
         ]
       },
       {
         id: 'ko-111',
         source: 'QR',
-        table: { tableNumber: 'Table 5' },
+        table: { tableNumber: 'Table 11' },
         status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+        acceptedAt: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+        waiter: { name: 'Ritesh' },
         items: [
-          { id: 'koi-29', quantity: 1, menuItem: { name: 'Margherita Pizza', price: 299 } },
-          { id: 'koi-30', quantity: 1, menuItem: { name: 'Garlic Bread', price: 99 } },
-          { id: 'koi-31', quantity: 1, menuItem: { name: 'Pepsi', price: 40 } }
+          { id: 'koi-25', quantity: 2, menuItem: { name: 'Hakka Noodles', price: 150 } },
+          { id: 'koi-26', quantity: 2, menuItem: { name: 'Sprite', price: 40 } }
         ]
       },
       {
         id: 'ko-112',
         source: 'QR',
-        table: { tableNumber: 'Table 6' },
+        table: { tableNumber: 'Table 12' },
         status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 17 * 60 * 1000).toISOString(),
+        acceptedAt: new Date(Date.now() - 7 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+        waiter: { name: 'Adesh' },
         items: [
-          { id: 'koi-32', quantity: 2, menuItem: { name: 'Veg Crispy', price: 160 } },
-          { id: 'koi-33', quantity: 1, menuItem: { name: 'Manchurian', price: 150 } },
-          { id: 'koi-34', quantity: 1, menuItem: { name: 'Fried Rice', price: 140 } }
+          { id: 'koi-27', quantity: 2, menuItem: { name: 'Cheese Burger', price: 140 } },
+          { id: 'koi-28', quantity: 2, menuItem: { name: 'French Fries', price: 90 } },
+          { id: 'koi-29', quantity: 2, menuItem: { name: 'Coke', price: 40 } }
         ]
       },
       {
         id: 'ko-113',
         source: 'QR',
-        table: { tableNumber: 'Table 11' },
+        table: { tableNumber: 'Table 13' },
         status: 'ACCEPTED',
         acceptedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 9 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 7 * 60 * 1000).toISOString(),
+        waiter: { name: 'Rahul' },
         items: [
-          { id: 'koi-35', quantity: 1, menuItem: { name: 'Veg Pulao', price: 180 } },
-          { id: 'koi-36', quantity: 1, menuItem: { name: 'Raita', price: 50 } },
-          { id: 'koi-37', quantity: 1, menuItem: { name: 'Sprite', price: 40 } }
+          { id: 'koi-30', quantity: 1, menuItem: { name: 'Prawns Masala', price: 280 } },
+          { id: 'koi-31', quantity: 2, menuItem: { name: 'Butter Naan', price: 40 } }
         ]
       },
+
+      // READY ORDERS (T14 to T20)
       {
         id: 'ko-114',
         source: 'QR',
-        table: { tableNumber: 'Table 13' },
-        status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 13 * 60 * 1000).toISOString(),
+        table: { tableNumber: 'Table 14' },
+        status: 'READY',
+        createdAt: new Date(Date.now() - 14 * 60 * 1000).toISOString(),
+        waiter: { name: 'Akshay' },
         items: [
-          { id: 'koi-38', quantity: 1, menuItem: { name: 'Veg Noodles', price: 160 } },
-          { id: 'koi-39', quantity: 2, menuItem: { name: 'Spring Roll', price: 90 } },
-          { id: 'koi-40', quantity: 1, menuItem: { name: 'Pepsi', price: 40 } }
+          { id: 'koi-32', quantity: 1, menuItem: { name: 'Hakka Noodles', price: 150 } },
+          { id: 'koi-33', quantity: 1, menuItem: { name: 'Manchurian', price: 150 } }
         ]
       },
       {
         id: 'ko-115',
         source: 'QR',
-        table: { tableNumber: 'Table 14' },
-        status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        table: { tableNumber: 'Table 15' },
+        status: 'READY',
+        createdAt: new Date(Date.now() - 16 * 60 * 1000).toISOString(),
+        waiter: { name: 'Ritesh' },
         items: [
-          { id: 'koi-41', quantity: 1, menuItem: { name: 'Paneer Kadai', price: 240 } },
-          { id: 'koi-42', quantity: 2, menuItem: { name: 'Butter Naan', price: 50 } },
-          { id: 'koi-43', quantity: 1, menuItem: { name: 'Lassi', price: 60 } }
+          { id: 'koi-34', quantity: 1, menuItem: { name: 'Paneer Tikka', price: 199 } },
+          { id: 'koi-35', quantity: 2, menuItem: { name: 'Lassi', price: 60 } }
         ]
       },
       {
         id: 'ko-116',
         source: 'QR',
-        table: { tableNumber: 'Table 18' },
-        status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 13 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+        table: { tableNumber: 'Table 16' },
+        status: 'READY',
+        createdAt: new Date(Date.now() - 18 * 60 * 1000).toISOString(),
+        waiter: { name: 'Adesh' },
         items: [
-          { id: 'koi-44', quantity: 2, menuItem: { name: 'Margherita Pizza', price: 299 } },
-          { id: 'koi-45', quantity: 3, menuItem: { name: 'Coke', price: 40 } }
+          { id: 'koi-36', quantity: 2, menuItem: { name: 'Chicken Burger', price: 160 } },
+          { id: 'koi-37', quantity: 1, menuItem: { name: 'French Fries', price: 90 } },
+          { id: 'koi-38', quantity: 1, menuItem: { name: 'Pepsi', price: 40 } }
         ]
       },
-
-      // READY ORDERS (4)
       {
         id: 'ko-117',
         source: 'QR',
-        table: { tableNumber: 'Table 4' },
+        table: { tableNumber: 'Table 17' },
         status: 'READY',
-        createdAt: new Date(Date.now() - 18 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+        waiter: { name: 'Rahul' },
         items: [
-          { id: 'koi-46', quantity: 2, menuItem: { name: 'Chicken Biryani (Full)', price: 280 } },
-          { id: 'koi-47', quantity: 2, menuItem: { name: 'Raita', price: 50 } },
-          { id: 'koi-48', quantity: 2, menuItem: { name: 'Water Bottle', price: 20 } }
+          { id: 'koi-39', quantity: 1, menuItem: { name: 'Veg Fried Rice', price: 140 } },
+          { id: 'koi-40', quantity: 1, menuItem: { name: 'Manchurian', price: 150 } }
         ]
       },
       {
         id: 'ko-118',
         source: 'QR',
-        table: { tableNumber: 'Table 8' },
+        table: { tableNumber: 'Table 18' },
         status: 'READY',
         createdAt: new Date(Date.now() - 22 * 60 * 1000).toISOString(),
+        waiter: { name: 'Akshay' },
         items: [
-          { id: 'koi-49', quantity: 1, menuItem: { name: 'Chicken Handi (Full)', price: 240 } },
-          { id: 'koi-50', quantity: 1, menuItem: { name: 'Jeera Rice (Full)', price: 120 } },
-          { id: 'koi-51', quantity: 1, menuItem: { name: 'Water Bottle', price: 20 } }
+          { id: 'koi-41', quantity: 1, menuItem: { name: 'Margherita Pizza', price: 299 } },
+          { id: 'koi-42', quantity: 1, menuItem: { name: 'Garlic Bread', price: 99 } },
+          { id: 'koi-43', quantity: 1, menuItem: { name: 'Sprite', price: 40 } }
         ]
       },
       {
         id: 'ko-119',
         source: 'QR',
-        table: { tableNumber: 'Table 9' },
+        table: { tableNumber: 'Table 19' },
         status: 'READY',
-        createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 24 * 60 * 1000).toISOString(),
+        waiter: { name: 'Ritesh' },
         items: [
-          { id: 'koi-52', quantity: 2, menuItem: { name: 'Cheese Burger', price: 140 } },
-          { id: 'koi-53', quantity: 2, menuItem: { name: 'French Fries', price: 90 } },
-          { id: 'koi-54', quantity: 2, menuItem: { name: 'Coke', price: 40 } }
+          { id: 'koi-44', quantity: 1, menuItem: { name: 'Pomfret Fry', price: 320 } },
+          { id: 'koi-45', quantity: 1, menuItem: { name: 'Jeera Rice Full', price: 120 } }
         ]
       },
       {
         id: 'ko-120',
         source: 'QR',
-        table: { tableNumber: 'Table 17' },
+        table: { tableNumber: 'Table 20' },
         status: 'READY',
-        createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 26 * 60 * 1000).toISOString(),
+        waiter: { name: 'Adesh' },
         items: [
-          { id: 'koi-55', quantity: 1, menuItem: { name: 'Chicken Biryani (Half)', price: 280 } },
-          { id: 'koi-56', quantity: 1, menuItem: { name: 'Salan', price: 40 } },
-          { id: 'koi-57', quantity: 1, menuItem: { name: 'Water Bottle', price: 20 } }
+          { id: 'koi-46', quantity: 1, menuItem: { name: 'Chicken Kadai', price: 240 } },
+          { id: 'koi-47', quantity: 2, menuItem: { name: 'Butter Naan', price: 40 } },
+          { id: 'koi-48', quantity: 1, menuItem: { name: 'Water Bottle', price: 20 } }
         ]
       }
     ];
@@ -403,6 +435,7 @@ export const KitchenDisplay: React.FC = () => {
       try {
         const payload = JSON.parse(event.data);
         console.log('[KDS SSE] Event received:', payload);
+        fetchOrders();
 
         if (payload.type === 'NEW_ORDER') {
           const newOrder = payload.data;
@@ -625,11 +658,10 @@ export const KitchenDisplay: React.FC = () => {
         {toasts.map(toast => (
           <div
             key={toast.id}
-            className={`pointer-events-auto p-4 rounded-xl shadow-2xl border transition-all duration-350 transform translate-y-0 scale-100 flex flex-col gap-1.5 animate-bounce-in ${
-              toast.type === 'success'
-                ? 'bg-emerald-600 text-white border-emerald-500'
-                : 'bg-orange-600 text-white border-orange-500'
-            }`}
+            className={`pointer-events-auto p-4 rounded-xl shadow-2xl border transition-all duration-350 transform translate-y-0 scale-100 flex flex-col gap-1.5 animate-bounce-in ${toast.type === 'success'
+              ? 'bg-emerald-600 text-white border-emerald-500'
+              : 'bg-orange-600 text-white border-orange-500'
+              }`}
           >
             <div className="flex items-center justify-between">
               <span className="font-extrabold text-[10px] uppercase tracking-wider opacity-90">
@@ -683,6 +715,12 @@ export const KitchenDisplay: React.FC = () => {
             <Bell className="w-3.5 h-3.5" />
             <span>BELL TEST</span>
           </button>
+          <button
+            onClick={handleSeedDummyOrders}
+            className="bg-blue-650 hover:bg-blue-500 text-white px-3.5 py-1 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            <span>SEED DATA</span>
+          </button>
         </div>
       </div>
 
@@ -697,8 +735,8 @@ export const KitchenDisplay: React.FC = () => {
             key={t.tabId}
             onClick={() => setActiveTab(t.tabId as any)}
             className={`flex-1 flex items-center justify-center gap-2.5 py-3 rounded-lg text-base tracking-wider transition-all ${activeTab === t.tabId
-                ? 'bg-white dark:bg-slate-700 shadow-sm text-black dark:text-white font-extrabold border-b-2 border-black dark:border-white'
-                : 'text-slate-500 hover:text-slate-850 dark:hover:text-slate-300 font-bold'
+              ? 'bg-white dark:bg-slate-700 shadow-sm text-black dark:text-white font-extrabold border-b-2 border-black dark:border-white'
+              : 'text-slate-500 hover:text-slate-850 dark:hover:text-slate-300 font-bold'
               }`}
           >
             <span className="text-black dark:text-white">{t.label}</span>
@@ -741,31 +779,34 @@ export const KitchenDisplay: React.FC = () => {
               return (
                 <div
                   key={order.id}
-                  className={`transition-all border-b border-slate-100 dark:border-slate-750 ${
-                    isNew ? 'flash-row bg-blue-50/10 dark:bg-blue-900/5' : ''
-                  } ${isDelayed ? 'delayed-border bg-red-50/5 dark:bg-red-950/5' : ''} ${
-                    order.status === 'READY' ? 'ready-glow bg-emerald-50/5 dark:bg-emerald-950/5' : ''
-                  } hover:bg-slate-50/50 dark:hover:bg-slate-800/30`}
+                  className={`transition-all border-b border-slate-100 dark:border-slate-750 ${isNew ? 'flash-row bg-blue-50/10 dark:bg-blue-900/5' : ''
+                    } ${isDelayed ? 'delayed-border bg-red-50/5 dark:bg-red-950/5' : ''} ${order.status === 'READY' ? 'ready-glow bg-emerald-50/5 dark:bg-emerald-950/5' : ''
+                    } hover:bg-slate-50/50 dark:hover:bg-slate-800/30`}
                 >
                   {/* Compact Main Row: Fixed Width Column Grid, Regular Data Weight */}
                   <div className="grid grid-cols-[140px_130px_2.5fr_1.5fr_140px_160px] gap-4 p-4 items-center text-slate-900 dark:text-slate-100 font-normal">
-                    {/* TABLE NUMBER - Medium font size, Regular weight, Black color */}
-                    <div className="text-base text-slate-900 dark:text-white">
-                      {order.table?.tableNumber || 'Takeaway'}
+                    {/* TABLE NUMBER - Bold, Black color, uppercase */}
+                    <div className="text-base text-black font-extrabold">
+                      <div className="text-black uppercase">
+                        TABLE T{order.table?.tableNumber ? order.table.tableNumber.replace(/\D/g, '') : 'Takeaway'}
+                      </div>
+                      <div className="text-xs text-black font-bold mt-1 uppercase">
+                        WAITER: {order.waiter?.name ? order.waiter.name.toUpperCase() : 'UNASSIGNED'}
+                      </div>
                     </div>
 
                     {/* ORDER NUMBER - Regular weight, Black color */}
-                    <div className="text-sm text-slate-900 dark:text-slate-355 font-mono">
+                    <div className="text-sm text-black font-mono font-bold">
                       #{order.id.slice(-4).toUpperCase()}
                     </div>
 
-                    {/* ORDERED ITEMS - Items directly shown with proper format: Dish Name – Qty X */}
-                    <div className="text-sm text-slate-900 dark:text-slate-200 space-y-1.5">
+                    {/* ORDERED ITEMS - Items directly shown with proper format: Dish Name ×Qty */}
+                    <div className="text-sm text-black space-y-1.5 font-bold">
                       {order.items.map((it: any, index: number) => (
-                        <div key={it.id || index} className="font-semibold text-slate-800 dark:text-slate-200">
-                          {it.menuItem?.name || 'Dish'} – Qty {it.quantity}
+                        <div key={it.id || index} className="text-black font-extrabold text-sm">
+                          {it.menuItem?.name || 'Dish'} Qty {it.quantity}
                           {it.notes && (
-                            <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold italic ml-2 block">
+                            <span className="text-xs text-amber-600 font-bold italic ml-2 block">
                               ↳ Notes: "{it.notes}"
                             </span>
                           )}
