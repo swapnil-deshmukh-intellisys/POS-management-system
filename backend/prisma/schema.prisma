@@ -127,6 +127,9 @@ model Product {
   createdAt               DateTime             @default(now()) @map("created_at")
   updatedAt               DateTime             @updatedAt @map("updated_at")
   isDeleted               Boolean              @default(false) @map("is_deleted")
+  mfgDate                 DateTime?            @map("mfg_date")
+  notes                   String?              @map("notes")
+  image                   String?              @map("image")
   offerPrice              Float?               @map("offer_price")
   offerStartDate          DateTime?            @map("offer_start_date")
   offerEndDate            DateTime?            @map("offer_end_date")
@@ -446,6 +449,7 @@ model Supplier {
   companyName         String                   @map("company_name")
   contactPerson       String                   @map("contact_person")
   mobile              String                   @map("mobile")
+  whatsapp            String?                  @map("whatsapp")
   email               String                   @map("email")
   gstNumber           String                   @map("gst_number")
   panNumber           String?                  @map("pan_number")
@@ -1261,6 +1265,160 @@ model AuditHistory {
 
   @@map("audit_history")
 }
+
+model RestaurantInventoryCategory {
+  id        String                    @id @default(uuid())
+  name      String                    @unique
+  createdAt DateTime                  @default(now())
+  items     RestaurantInventoryItem[]
+
+  @@map("inventory_categories")
+}
+
+model RestaurantInventorySupplier {
+  id               String                    @id @default(uuid())
+  name             String
+  phone            String?
+  whatsapp         String?
+  email            String?
+  address          String?
+  productsSupplied String?
+  notes            String?
+  lastPurchaseDate DateTime?
+  lastPurchaseAmount Float?
+  createdAt        DateTime                  @default(now())
+  items            RestaurantInventoryItem[]
+  purchaseOrders   RestaurantPurchaseOrder[]
+
+  @@map("inventory_suppliers")
+}
+
+
+model RestaurantInventoryItem {
+  id              String                          @id @default(uuid())
+  name            String                          @unique
+  categoryId      String
+  category        RestaurantInventoryCategory    @relation(fields: [categoryId], references: [id])
+  unitType        String
+  minimumStock    Float
+  currentStock    Float
+  purchasePrice   Float
+  sellingPrice    Float?
+  supplierId      String?
+  supplier        RestaurantInventorySupplier?   @relation(fields: [supplierId], references: [id])
+  expiryDate      DateTime?
+  storageLocation String?
+  batchNumber     String?
+  status          String                          @default("Normal") // Normal, Low Stock, Out Of Stock, Expiring Soon, Expired, Dead Stock
+  lastUsedAt      DateTime                        @default(now())
+  createdAt       DateTime                        @default(now())
+  updatedAt       DateTime                        @updatedAt
+  movements       RestaurantInventoryMovement[]
+  expiries        RestaurantInventoryExpiry[]
+  deadStocks      RestaurantInventoryDeadStock[]
+  batches         RestaurantInventoryBatch[]
+  consumptions    RestaurantInventoryConsumption[]
+  poItems         RestaurantPurchaseOrderItem[]
+
+  @@map("inventory_products")
+}
+
+model RestaurantInventoryMovement {
+  id        String                  @id @default(uuid())
+  itemId    String
+  item      RestaurantInventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  type      String // Purchase, Usage, Waste, Adjustment, Expiry
+  quantity  Float
+  notes     String?
+  createdAt DateTime                @default(now())
+
+  @@map("inventory_movements_restaurant")
+}
+
+model RestaurantInventoryExpiry {
+  id         String                  @id @default(uuid())
+  itemId     String
+  item       RestaurantInventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  expiryDate DateTime
+  status     String // Expiring In 7 Days, Expiring In 3 Days, Expired
+  createdAt  DateTime                @default(now())
+
+  @@map("inventory_expiry")
+}
+
+model RestaurantInventoryDeadStock {
+  id               String                  @id @default(uuid())
+  itemId           String                  @unique
+  item             RestaurantInventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  daysWithoutUsage Int
+  createdAt        DateTime                @default(now())
+
+  @@map("inventory_dead_stock")
+}
+
+model RestaurantPurchaseRequest {
+  id               String   @id @default(uuid())
+  itemId           String
+  itemName         String
+  quantityRequired Float
+  status           String   @default("Pending") // Pending, Ordered, Completed
+  reason           String
+  createdAt        DateTime @default(now())
+
+  @@map("inventory_purchase_requests")
+}
+
+model RestaurantInventoryBatch {
+  id          String                  @id @default(uuid())
+  itemId      String
+  item        RestaurantInventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  batchNumber String
+  quantity    Float
+  expiryDate  DateTime?
+  createdAt   DateTime                @default(now())
+
+  @@map("inventory_batches")
+}
+
+model RestaurantInventoryConsumption {
+  id        String                  @id @default(uuid())
+  itemId    String
+  item      RestaurantInventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantity  Float
+  date      DateTime                @default(now())
+  notes     String?
+
+  @@map("inventory_consumption")
+}
+
+model RestaurantPurchaseOrder {
+  id         String                        @id @default(uuid())
+  poNumber   String                        @unique
+  supplierId String
+  supplier   RestaurantInventorySupplier   @relation(fields: [supplierId], references: [id])
+  status     String                        @default("Draft") // Draft, Sent, Pending, Partially Delivered, Delivered, Cancelled
+  createdAt  DateTime                      @default(now())
+  updatedAt  DateTime                      @updatedAt
+  items      RestaurantPurchaseOrderItem[]
+
+  @@map("restaurant_purchase_orders")
+}
+
+model RestaurantPurchaseOrderItem {
+  id              String                  @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   RestaurantPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         RestaurantInventoryItem @relation(fields: [productId], references: [id])
+  quantityOrdered Float
+  quantityReceived Float                  @default(0)
+  expiryDate      DateTime?
+  batchNumber     String?
+
+  @@map("restaurant_purchase_order_items")
+}
+
+
 
 
 

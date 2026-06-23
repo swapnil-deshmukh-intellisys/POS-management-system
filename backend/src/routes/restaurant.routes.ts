@@ -52,8 +52,33 @@ import {
   deleteWaiter,
   editTable,
   deleteTable,
-  seedDummyReadyOrders
+  seedDummyReadyOrders,
+  settleTableBill
 } from '../controllers/restaurant.controller';
+import {
+  getInventoryDashboard,
+  getInventoryItems,
+  createInventoryItem,
+  updateInventoryItem,
+  adjustInventoryStock,
+  getInventoryCategories,
+  createInventoryCategory,
+  getInventorySuppliers,
+  createInventorySupplier,
+  getExpiryAlerts,
+  getDeadStockReport,
+  getPurchaseRequirements,
+  createPurchaseRequest,
+  resolvePurchaseRequest,
+  getInventoryMovements,
+  getConsumptionReports,
+  getPurchaseOrders,
+  createPurchaseOrder,
+  updatePOStatus,
+  downloadPOPdf,
+  downloadPODocx,
+  receivePODelivery
+} from '../controllers/restaurantInventory.controller';
 
 const router = Router();
 
@@ -71,6 +96,7 @@ router.delete('/tables/:id', deleteTable);
 router.post('/tables/transfer', transferTable);
 router.post('/tables/merge', mergeTables);
 router.post('/tables/split', splitTableBill);
+router.post('/tables/settle', settleTableBill);
 
 // Categories & Menu
 router.get('/menu/categories', getCategories);
@@ -136,5 +162,29 @@ router.post('/feedback', submitFeedback);
 
 // Reports
 router.get('/reports', getReports);
+
+// Restaurant Inventory Management routes
+router.get('/inventory/dashboard', getInventoryDashboard);
+router.get('/inventory/items', getInventoryItems);
+router.post('/inventory/items', createInventoryItem);
+router.put('/inventory/items/:id', updateInventoryItem);
+router.post('/inventory/items/:id/movement', adjustInventoryStock);
+router.get('/inventory/categories', getInventoryCategories);
+router.post('/inventory/categories', createInventoryCategory);
+router.get('/inventory/suppliers', getInventorySuppliers);
+router.post('/inventory/suppliers', createInventorySupplier);
+router.get('/inventory/expiry', getExpiryAlerts);
+router.get('/inventory/dead-stock', getDeadStockReport);
+router.get('/inventory/purchase-requirements', getPurchaseRequirements);
+router.post('/inventory/purchase-requests', createPurchaseRequest);
+router.put('/inventory/purchase-requests/:id', resolvePurchaseRequest);
+router.get('/inventory/movements', getInventoryMovements);
+router.get('/inventory/reports', getConsumptionReports);
+router.get('/inventory/purchase-orders', getPurchaseOrders);
+router.post('/inventory/purchase-orders', createPurchaseOrder);
+router.put('/inventory/purchase-orders/:id/status', updatePOStatus);
+router.get('/inventory/purchase-orders/:id/download-pdf', downloadPOPdf);
+router.get('/inventory/purchase-orders/:id/download-docx', downloadPODocx);
+router.post('/inventory/purchase-orders/:id/receive', receivePODelivery);
 
 export default router;

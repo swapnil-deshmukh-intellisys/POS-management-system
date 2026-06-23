@@ -171,6 +171,10 @@ export const TableManagement: React.FC = () => {
     switch (status) {
       case 'AVAILABLE': return 'bg-slate-100 border-slate-300 text-slate-700';
       case 'OCCUPIED': return 'bg-emerald-50 border-emerald-300 text-emerald-700';
+      case 'COOKING': return 'bg-orange-50 border-orange-300 text-orange-700';
+      case 'READY': return 'bg-sky-50 border-sky-350 text-sky-750';
+      case 'SERVED': return 'bg-teal-50 border-teal-300 text-teal-700';
+      case 'BILLING_PENDING': return 'bg-rose-50 border-rose-300 text-rose-700';
       case 'RESERVED': return 'bg-blue-50 border-blue-300 text-blue-700';
       case 'CLEANING': return 'bg-amber-50 border-amber-300 text-amber-700';
       default: return 'bg-slate-100 border-slate-300 text-slate-700';
@@ -180,7 +184,11 @@ export const TableManagement: React.FC = () => {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'AVAILABLE': return 'Available';
-      case 'OCCUPIED': return 'Dining';
+      case 'OCCUPIED': return 'Occupied';
+      case 'COOKING': return 'Cooking';
+      case 'READY': return 'Ready';
+      case 'SERVED': return 'Served';
+      case 'BILLING_PENDING': return 'Billing Pending';
       case 'RESERVED': return 'Reserved';
       case 'CLEANING': return 'Cleaning';
       default: return status;
@@ -323,7 +331,7 @@ export const TableManagement: React.FC = () => {
                 <div className="pt-4 border-t border-slate-100">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Change Status</span>
                   <div className="grid grid-cols-2 gap-1.5">
-                    {['AVAILABLE', 'OCCUPIED', 'RESERVED', 'CLEANING'].map(st => (
+                    {['AVAILABLE', 'OCCUPIED', 'COOKING', 'READY', 'SERVED', 'BILLING_PENDING', 'CLEANING', 'RESERVED'].map(st => (
                       <button
                         key={st}
                         onClick={() => handleUpdateStatus(selectedTable.id, st)}

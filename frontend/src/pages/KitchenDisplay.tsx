@@ -802,16 +802,28 @@ export const KitchenDisplay: React.FC = () => {
 
                     {/* ORDERED ITEMS - Items directly shown with proper format: Dish Name ×Qty */}
                     <div className="text-sm text-black space-y-1.5 font-bold">
-                      {order.items.map((it: any, index: number) => (
-                        <div key={it.id || index} className="text-black font-extrabold text-sm">
-                          {it.menuItem?.name || 'Dish'} Qty {it.quantity}
-                          {it.notes && (
-                            <span className="text-xs text-amber-600 font-bold italic ml-2 block">
-                              ↳ Notes: "{it.notes}"
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                      {order.items.map((it: any, index: number) => {
+                        const match = it.notes?.match(/^\[(KOT-\d+)\]/);
+                        const kotBadge = match ? match[1] : null;
+                        const cleanNotes = match ? it.notes.replace(/^\[KOT-\d+\]\s*/, '') : it.notes;
+                        return (
+                          <div key={it.id || index} className="text-black font-extrabold text-sm flex flex-col">
+                            <div className="flex items-center gap-2">
+                              {kotBadge && (
+                                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                  {kotBadge}
+                                </span>
+                              )}
+                              <span>{it.menuItem?.name || 'Dish'} Qty {it.quantity}</span>
+                            </div>
+                            {cleanNotes && (
+                              <span className="text-xs text-amber-605 font-bold italic ml-2 block">
+                                ↳ Notes: "{cleanNotes}"
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                       {order.notes && (
                         <div className="bg-amber-50/40 dark:bg-amber-950/15 border border-amber-100/35 dark:border-amber-900/20 p-2 rounded-lg mt-1 text-xs">
                           <span className="font-extrabold text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400 block">

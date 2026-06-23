@@ -227,7 +227,33 @@ export const getProducts = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 export const createProduct = async (req: AuthenticatedRequest, res: Response) => {
-  const { name, sku, barcode, categoryId, brand, sellingPrice, costPrice, unit, quantity, expiryDate, isOnOffer, offerDiscount, offerType, offerBuyQuantity, offerFreeQuantity, offerLabel, offerEndsAt, offerPrice, offerStartDate, offerEndDate } = req.body;
+  const { 
+    name, 
+    sku, 
+    barcode, 
+    categoryId, 
+    brand, 
+    sellingPrice, 
+    costPrice, 
+    unit, 
+    quantity, 
+    expiryDate, 
+    isOnOffer, 
+    offerDiscount, 
+    offerType, 
+    offerBuyQuantity, 
+    offerFreeQuantity, 
+    offerLabel, 
+    offerEndsAt, 
+    offerPrice, 
+    offerStartDate, 
+    offerEndDate,
+    mfgDate,
+    notes,
+    image,
+    supplierId,
+    minimumStock
+  } = req.body;
 
   try {
     if (!name || !sku || !categoryId || sellingPrice === undefined || costPrice === undefined) {
@@ -249,6 +275,11 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(400).json({ message: 'Expiry date is invalid' });
     }
 
+    const parsedMfgDate = mfgDate ? new Date(String(mfgDate)) : null;
+    if (mfgDate && Number.isNaN(parsedMfgDate?.getTime())) {
+      return res.status(400).json({ message: 'Manufacturing date is invalid' });
+    }
+
     // Check collisions
     const skuExists = await prisma.product.findUnique({ where: { sku } });
     if (skuExists) {
@@ -267,10 +298,12 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(400).json({ message: 'Quantity cannot be negative' });
     }
 
+    const minStockVal = minimumStock !== undefined ? parseInt(String(minimumStock)) : 10;
+
     let computedStatus: StockStatus = StockStatus.IN_STOCK;
     if (qty <= 0) {
       computedStatus = StockStatus.OUT_OF_STOCK;
-    } else if (qty <= 10) {
+    } else if (qty <= minStockVal) {
       computedStatus = StockStatus.LOW_STOCK;
     }
 
@@ -321,6 +354,10 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
         offerPrice: parsedOfferPrice,
         offerStartDate: parsedOfferStartDate,
         offerEndDate: parsedOfferEndDate,
+        mfgDate: parsedMfgDate,
+        notes: notes || null,
+        image: image || null,
+        supplierId: supplierId || null,
       },
     });
 
@@ -332,6 +369,7 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
           productId: product.id,
           branchId: defaultBranch.id,
           quantity: qty,
+          lowStockAlert: minStockVal,
         },
       });
     }
@@ -356,7 +394,7 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
 
 export const updateProduct = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const { name, sku, barcode, categoryId, brand, sellingPrice, costPrice, unit, quantity, expiryDate, isOnOffer, offerDiscount, offerType, offerBuyQuantity, offerFreeQuantity, offerLabel, offerEndsAt, expiryStatus, batchNumber, supplierId, lastNotificationSent, actionTaken, resolvedAt, prioritySale, returnedStock, returnReason, expiryActionStatus, expiryNotificationStage, offerPrice, offerStartDate, offerEndDate } = req.body;
+  const { name, sku, barcode, categoryId, brand, sellingPrice, costPrice, unit, quantity, expiryDate, isOnOffer, offerDiscount, offerType, offerBuyQuantity, offerFreeQuantity, offerLabel, offerEndsAt, expiryStatus, batchNumber, supplierId, lastNotificationSent, actionTaken, resolvedAt, prioritySale, returnedStock, returnReason, expiryActionStatus, expiryNotificationStage, offerPrice, offerStartDate, offerEndDate, mfgDate, notes, image, minimumStock } = req.body;
   const hasBarcodeField = Object.prototype.hasOwnProperty.call(req.body, 'barcode');
   const normalizedBarcode = hasBarcodeField ? String(barcode ?? '').replace(/[\r\n\t\s]/g, '').trim() : undefined;
   const hasExpiryDateField = Object.prototype.hasOwnProperty.call(req.body, 'expiryDate');
@@ -409,6 +447,12 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(400).json({ message: 'Expiry date is invalid' });
     }
 
+    const hasMfgDateField = Object.prototype.hasOwnProperty.call(req.body, 'mfgDate');
+    const parsedMfgDate = hasMfgDateField && mfgDate ? new Date(String(mfgDate)) : (mfgDate === null ? null : undefined);
+    if (hasMfgDateField && mfgDate && Number.isNaN(parsedMfgDate?.getTime())) {
+      return res.status(400).json({ message: 'Manufacturing date is invalid' });
+    }
+
     const parsedOfferDiscount = hasOfferDiscountField && offerDiscount !== undefined && offerDiscount !== null ? parseFloat(String(offerDiscount)) : undefined;
     if (hasOfferDiscountField && parsedOfferDiscount !== undefined && (Number.isNaN(parsedOfferDiscount) || parsedOfferDiscount < 0 || parsedOfferDiscount > 100)) {
       return res.status(400).json({ message: 'Offer discount must be between 0 and 100' });
@@ -448,11 +492,34 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(400).json({ message: 'Quantity cannot be negative' });
     }
 
+    const minStockVal = minimumStock !== undefined ? parseInt(String(minimumStock)) : undefined;
+
+    // Get current/existing branch stock configuration to calculate status properly
+    const defaultBranch = await prisma.branch.findFirst();
+    let currentLowStockAlert = 10;
+    let currentQty = 0;
+    if (defaultBranch) {
+      const existingStock = await prisma.productBranchStock.findUnique({
+        where: {
+          productId_branchId: {
+            productId: id,
+            branchId: defaultBranch.id,
+          },
+        },
+      });
+      if (existingStock) {
+        currentLowStockAlert = existingStock.lowStockAlert;
+        currentQty = existingStock.quantity;
+      }
+    }
+    const finalLowStockAlert = minStockVal !== undefined ? minStockVal : currentLowStockAlert;
+    const finalQty = qty !== undefined ? qty : currentQty;
+
     let computedStatus: StockStatus | undefined;
-    if (qty !== undefined) {
-      if (qty <= 0) {
+    if (qty !== undefined || minStockVal !== undefined) {
+      if (finalQty <= 0) {
         computedStatus = StockStatus.OUT_OF_STOCK;
-      } else if (qty <= 10) {
+      } else if (finalQty <= finalLowStockAlert) {
         computedStatus = StockStatus.LOW_STOCK;
       } else {
         computedStatus = StockStatus.IN_STOCK;
@@ -493,12 +560,14 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
         offerPrice: hasOfferPriceField ? (parsedOfferPrice !== undefined ? parsedOfferPrice : null) : undefined,
         offerStartDate: hasOfferStartDateField ? (parsedOfferStartDate || null) : undefined,
         offerEndDate: hasOfferEndDateField ? (parsedOfferEndDate || null) : undefined,
+        mfgDate: parsedMfgDate,
+        notes: notes !== undefined ? notes : undefined,
+        image: image !== undefined ? image : undefined,
       },
     });
 
     // Update branch stock
-    if (qty !== undefined) {
-      const defaultBranch = await prisma.branch.findFirst();
+    if (qty !== undefined || minStockVal !== undefined) {
       if (defaultBranch) {
         await prisma.productBranchStock.upsert({
           where: {
@@ -510,10 +579,12 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
           create: {
             productId: id,
             branchId: defaultBranch.id,
-            quantity: qty || 0,
+            quantity: qty !== undefined ? qty : 0,
+            lowStockAlert: minStockVal !== undefined ? minStockVal : 10,
           },
           update: {
-            quantity: qty,
+            quantity: qty !== undefined ? qty : undefined,
+            lowStockAlert: minStockVal !== undefined ? minStockVal : undefined,
           },
         });
       }

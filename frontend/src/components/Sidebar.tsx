@@ -33,6 +33,7 @@ export const Sidebar: React.FC = () => {
 
   const retailNavItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'Take Order', path: '/restaurant/take-order', icon: Calculator },
     { name: 'POS Billing', path: '/billing', icon: Calculator },
     { name: 'Sales History', path: '/sales-history', icon: History },
     { name: 'Product Exchange', path: '/exchanges', icon: RefreshCw },
@@ -43,7 +44,6 @@ export const Sidebar: React.FC = () => {
     { name: 'Products', path: '/products', icon: Package },
     { name: 'Categories', path: '/categories', icon: Layers },
     { name: 'Inventory', path: '/inventory', icon: Archive },
-    { name: 'Purchases', path: '/purchases', icon: ShoppingBag },
     { name: 'Suppliers', path: '/suppliers', icon: Users },
     { name: 'Customers', path: '/customers', icon: UserCheck },
     { name: 'Reports', path: '/reports', icon: BarChart2 },
@@ -52,13 +52,15 @@ export const Sidebar: React.FC = () => {
 
   const restaurantNavItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-    { name: 'Tables & Billing', path: '/restaurant/tables', icon: Calculator },
+    { name: 'Take Order', path: '/restaurant/take-order', icon: Calculator },
     { name: 'Kitchen Display', path: '/restaurant/kitchen', icon: Archive },
     { name: 'Waiter Console', path: '/restaurant/waiter-dashboard', icon: UserCheck },
     { name: 'Digital Menu', path: '/restaurant/menu', icon: Layers },
     { name: 'Waiters Management', path: '/restaurant/waiters', icon: Users },
     { name: 'Reservations', path: '/restaurant/reservations', icon: UserCheck },
     { name: 'Recipes & Ingredients', path: '/restaurant/recipes', icon: Package },
+    { name: 'Inventory', path: '/restaurant/inventory', icon: Archive },
+    { name: 'Suppliers', path: '/suppliers', icon: Users },
     { name: 'Online Channels', path: '/restaurant/online-orders', icon: ShoppingBag },
     { name: 'Restaurant Reports', path: '/restaurant/reports', icon: BarChart2 },
     { name: 'Settings', path: '/settings', icon: Settings },

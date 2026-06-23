@@ -16,7 +16,7 @@ import {
   X
 } from 'lucide-react';
 
-interface CartItem {
+export interface CartItem {
   id: string;
   name: string;
   price: number;
@@ -38,6 +38,20 @@ export const POSBilling: React.FC = () => {
   const auth = useAuth();
   const [selectedCashier] = useState<string>('Admin');
 
+  // Restaurant states
+  const [tableId, setTableId] = useState<string | null>(null);
+  const [table, setTable] = useState<any>(null);
+  const [isRestaurantMode, setIsRestaurantMode] = useState<boolean>(false);
+  const [restaurantCategories, setRestaurantCategories] = useState<any[]>([]);
+  const [restaurantMenuItems, setRestaurantMenuItems] = useState<any[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [serviceCharge, setServiceCharge] = useState<number>(0);
+  const [gstPercent] = useState<number>(5); // default restaurant GST is 5%
+  const [specialInstructions, setSpecialInstructions] = useState<string>('');
+  const [tables, setTables] = useState<any[]>([]);
+  const [isFullScreenOrder, setIsFullScreenOrder] = useState<boolean>(false);
+  const [activeRunningBillTable, setActiveRunningBillTable] = useState<any | null>(null);
+
   // References
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -48,7 +62,7 @@ export const POSBilling: React.FC = () => {
   const [customers, setCustomers] = useState<any[]>([]);
 
   // Terminal state
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<any[]>([]);
   const [barcodeValue, setBarcodeValue] = useState('');
   const [customerMobile, setCustomerMobile] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
@@ -125,7 +139,6 @@ export const POSBilling: React.FC = () => {
 
   const loadData = async () => {
     try {
-
       const dbCustomers = await auth.apiRequest('/customers');
       setCustomers(dbCustomers || []);
 
@@ -147,6 +160,66 @@ export const POSBilling: React.FC = () => {
       setHeldBills(dbHeld || []);
 
       setSelectedCustomerId('');
+
+      // Fetch restaurant categories & menu items if business is Restaurant/Cafe or URL contains tableId
+      const params = new URLSearchParams(window.location.search);
+      const tId = params.get('tableId');
+      const businessType = auth.user?.businessType || '';
+      const isRest = tId || businessType === 'Restaurant' || businessType === 'Cafe';
+
+      if (isRest) {
+        setIsRestaurantMode(true);
+        let tablesList: any[] = [];
+        try {
+          tablesList = await auth.apiRequest(`/restaurant/tables`);
+          setTables(tablesList || []);
+        } catch (err) {
+          console.warn('Failed to load restaurant tables', err);
+        }
+
+        if (tId) {
+          setTableId(tId);
+          const currentTable = tablesList.find((t: any) => t.id === tId);
+          if (currentTable) {
+            setTable(currentTable);
+            if (currentTable.activeOrderId) {
+              try {
+                // Fetch existing active kitchen order items
+                const activeOrder = await auth.apiRequest(`/restaurant/orders/${currentTable.activeOrderId}`);
+                if (activeOrder && activeOrder.items) {
+                  const loadedCart = activeOrder.items.map((it: any) => ({
+                    id: it.menuItem.id,
+                    name: it.menuItem.name,
+                    price: it.menuItem.price || it.unitPrice,
+                    unit: it.menuItem.unit || 'pcs',
+                    quantity: it.quantity,
+                    stockQty: 9999,
+                    gstPercent: 5, // Restaurant standard GST is 5%
+                    orderedQty: it.quantity, // Track already sent quantity
+                    notes: it.notes || ''
+                  }));
+                  setCart(loadedCart);
+                  setSpecialInstructions(activeOrder.notes || '');
+                }
+              } catch (err) {
+                console.warn('Failed to load table billing data', err);
+              }
+            }
+          }
+        }
+
+        try {
+          const cats = await auth.apiRequest('/restaurant/menu/categories');
+          setRestaurantCategories(cats || []);
+          if (cats && cats.length > 0) {
+            setActiveCategory(cats[0].id);
+          }
+          const items = await auth.apiRequest('/restaurant/menu/items');
+          setRestaurantMenuItems(items || []);
+        } catch (err) {
+          console.warn('Failed to load restaurant menu data', err);
+        }
+      }
     } catch (err) {
       console.warn('Data lookup offline fallback', err);
     }
@@ -188,13 +261,13 @@ export const POSBilling: React.FC = () => {
       const target = e.target as HTMLElement;
       const isInteraction = target.closest('button') || target.closest('input') || target.closest('select') || target.closest('a');
 
-      if (currentStep === 'BILLING' && !showCameraScanner && !isInteraction) {
+      if (currentStep === 'BILLING' && !showCameraScanner && !isRestaurantMode && !isInteraction) {
         focusInput();
       }
     };
     window.addEventListener('click', handleWindowClick);
     return () => window.removeEventListener('click', handleWindowClick);
-  }, [currentStep, showCameraScanner]);
+  }, [currentStep, showCameraScanner, isRestaurantMode]);
 
   // Main barcode check scanner lookup
   const handleBarcodeLookup = async (code: string): Promise<boolean> => {
@@ -565,11 +638,14 @@ export const POSBilling: React.FC = () => {
   const itemsCount = cart.length;
   const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const taxAmount = cart.reduce((sum, item) => sum + ((item.price * item.quantity) * (item.gstPercent / 100)), 0);
-
   const customerDiscount = subtotal * (customerDiscountPercent / 100);
   const finalDiscount = customerDiscount;
-  const grandTotal = Math.max(0, subtotal - customerDiscount + taxAmount);
+
+  // Tax is calculated on (subtotal - discount)
+  const gstRate = isRestaurantMode ? gstPercent : 18;
+  const taxAmount = (subtotal - finalDiscount) * (gstRate / 100);
+
+  const grandTotal = Math.max(0, subtotal - finalDiscount + (isRestaurantMode ? serviceCharge : 0) + taxAmount);
   const changeReturned = Math.max(0, (parseFloat(cashReceived) || 0) - grandTotal);
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
@@ -967,12 +1043,596 @@ export const POSBilling: React.FC = () => {
       setNewCustomerName('');
       setNewCustomerPhone('');
       showToast(`Customer ${newCust.name} added successfully!`, 'success');
-    } catch {
-      showToast('Failed to add customer profile.', 'error');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to add customer', 'error');
     }
   };
 
+  const addMenuItemToCart = (menuItem: any) => {
+    playBeep();
+    const existingIndex = cart.findIndex((item) => item.id === menuItem.id);
+    if (existingIndex > -1) {
+      const newCart = [...cart];
+      newCart[existingIndex] = { ...newCart[existingIndex], quantity: newCart[existingIndex].quantity + 1 };
+      setCart(newCart);
+    } else {
+      setCart([
+        ...cart,
+        {
+          id: menuItem.id,
+          name: menuItem.name,
+          price: menuItem.price,
+          unit: menuItem.unit || 'pcs',
+          quantity: 1,
+          stockQty: 9999,
+          gstPercent: 5,
+          orderedQty: 0,
+          notes: ''
+        }
+      ]);
+    }
+  };
 
+  const handleSendToKitchen = async () => {
+    const newItems = cart.filter(item => item.quantity > (item.orderedQty || 0));
+    if (newItems.length === 0) {
+      showToast('No new items to send to the kitchen.', 'error');
+      return;
+    }
+
+    try {
+      setIsProcessingPayment(true);
+      const payload = {
+        tableId: tableId || null,
+        source: 'WALK_IN',
+        items: newItems.map(item => ({
+          menuItemId: item.id,
+          quantity: item.quantity - (item.orderedQty || 0),
+          unitPrice: item.price,
+          notes: item.notes || ''
+        })),
+        notes: specialInstructions || null,
+        waiterId: table?.waiterId || null
+      };
+
+      await auth.apiRequest('/restaurant/orders', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      showToast('Order successfully sent to kitchen!', 'success');
+
+      // Update orderedQty in local cart state
+      setCart(prev =>
+        prev.map(item => ({
+          ...item,
+          orderedQty: item.quantity
+        }))
+      );
+
+      // Refresh table status
+      const tablesList = await auth.apiRequest(`/restaurant/tables`);
+      setTables(tablesList || []);
+
+      // Clear current inputs and close order screen
+      setIsFullScreenOrder(false);
+      setTableId(null);
+      setTable(null);
+      setCart([]);
+      setSpecialInstructions('');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to place kitchen order', 'error');
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const handleSettleTable = async (method: 'CASH' | 'UPI' | 'CARD' | 'WALLET' | 'NETBANKING') => {
+    if (!tableId) return;
+    setIsProcessingPayment(true);
+    try {
+      const payload = {
+        tableId,
+        paymentMethod: method,
+        discount: finalDiscount,
+        serviceCharge: serviceCharge,
+        tax: taxAmount,
+        customerId: selectedCustomerId || null,
+        cashierName: selectedCashier,
+        customerMobile: customerMobile || selectedCustomer?.phone || '0000000000'
+      };
+
+      const res = await auth.apiRequest('/restaurant/tables/settle', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      setGeneratedInvoice(res.invoice);
+      setCart([]);
+      setCustomerDiscountPercent(0);
+      setServiceCharge(0);
+      setSpecialInstructions('');
+      setTableId(null);
+      setTable(null);
+      setActiveRunningBillTable(null);
+      try {
+        const tablesList = await auth.apiRequest('/restaurant/tables');
+        setTables(tablesList || []);
+      } catch (err) {
+        console.warn('Failed to refresh tables after settlement', err);
+      }
+      setCurrentStep('SUCCESS');
+      showToast('Table bill settled successfully!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to settle table bill', 'error');
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+  const renderRestaurantBilling = () => {
+    // filter menu items by active category and search
+    const filteredMenuItems = restaurantMenuItems.filter(item => {
+      const matchCat = activeCategory ? item.categoryId === activeCategory : true;
+      const matchSearch = customerSearchQuery ? item.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) : true;
+      return matchCat && matchSearch && item.status === 'Active';
+    });
+
+    const getStatusColor = (status: string) => {
+      switch (status) {
+        case 'AVAILABLE': return 'bg-white border-slate-300 text-slate-700';
+        case 'CLEANING': return 'bg-amber-50 border-amber-300 text-amber-700';
+        case 'OCCUPIED': return 'bg-emerald-50 border-emerald-300 text-emerald-700';
+        case 'COOKING': return 'bg-orange-50 border-orange-300 text-orange-700';
+        case 'READY': return 'bg-sky-50 border-sky-350 text-sky-750';
+        case 'SERVED': return 'bg-teal-50 border-teal-300 text-teal-700';
+        case 'BILLING_PENDING': return 'bg-rose-50 border-rose-300 text-rose-700';
+        case 'RESERVED': return 'bg-blue-50 border-blue-300 text-blue-700';
+        default: return 'bg-white border-slate-200 text-slate-700';
+      }
+    };
+
+    const getStatusText = (status: string) => {
+      switch (status) {
+        case 'AVAILABLE': return 'Available';
+        case 'OCCUPIED': return 'Occupied';
+        case 'COOKING': return 'Cooking';
+        case 'READY': return 'Ready';
+        case 'SERVED': return 'Served';
+        case 'BILLING_PENDING': return 'Billing Pending';
+        case 'RESERVED': return 'Reserved';
+        case 'CLEANING': return 'Cleaning';
+        default: return status;
+      }
+    };
+
+    const loadTableActiveOrder = async (t: any) => {
+      setTableId(t.id);
+      setTable(t);
+      setCart([]);
+      setSpecialInstructions('');
+      if (t.activeOrderId) {
+        try {
+          const activeOrder = await auth.apiRequest(`/restaurant/orders/${t.activeOrderId}`);
+          if (activeOrder && activeOrder.items) {
+            const loadedCart = activeOrder.items.map((it: any) => ({
+              id: it.menuItem.id,
+              name: it.menuItem.name,
+              price: it.menuItem.price || it.unitPrice,
+              unit: it.menuItem.unit || 'pcs',
+              quantity: it.quantity,
+              stockQty: 9999,
+              gstPercent: 5,
+              orderedQty: it.quantity,
+              notes: it.notes || ''
+            }));
+            setCart(loadedCart);
+            setSpecialInstructions(activeOrder.notes || '');
+          }
+        } catch (e) {
+          console.warn('Failed to load table active order', e);
+        }
+      }
+    };
+
+    const selectOrderingTable = async (t: any) => {
+      await loadTableActiveOrder(t);
+    };
+
+    if (isFullScreenOrder) {
+      /* FULLSCREEN ORDER TAKING SCREEN */
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-black antialiased -m-8 p-8">
+          {tableId === null ? (
+            /* STEP 1: Select Table */
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex-grow flex flex-col max-w-4xl mx-auto w-full">
+              <div className="border-b border-slate-100 pb-4 mb-6 flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-normal text-black uppercase tracking-wider">Step 1: Select Table</h2>
+                  <p className="text-xs text-slate-400 font-normal mt-0.5">Select a table to start order taking.</p>
+                </div>
+                <button
+                  onClick={() => setIsFullScreenOrder(false)}
+                  className="bg-slate-100 hover:bg-slate-250 text-black py-2 px-4 rounded-xl border border-slate-200 text-xs transition font-normal"
+                >
+                  Cancel & Exit
+                </button>
+              </div>
+
+              {/* Grid of simple buttons */}
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 overflow-y-auto pr-1 flex-grow">
+                {tables.map(t => {
+                  const isOccupied = t.status !== 'AVAILABLE' && t.status !== 'CLEANING';
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => selectOrderingTable(t)}
+                      className={`py-4 px-3 rounded-xl border transition text-center text-xs font-normal cursor-pointer shadow-sm hover:shadow-md ${isOccupied
+                          ? `${getStatusColor(t.status)} border-2`
+                          : 'bg-white hover:bg-slate-50 border-slate-200 text-black'
+                        }`}
+                    >
+                      <span className="block text-sm font-semibold">{t.tableNumber.replace('Table ', 'T')}</span>
+                      {isOccupied && (
+                        <span className="block text-[8px] text-slate-500 uppercase tracking-widest mt-1">
+                          {getStatusText(t.status)}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* STEP 2: Add Food */
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-grow overflow-hidden max-w-7xl mx-auto w-full h-full">
+              {/* Left Pane - Category tabs & Food items list */}
+              <div className="lg:col-span-8 flex flex-col space-y-4 h-full overflow-hidden">
+                <div className="flex gap-3 items-center shrink-0">
+                  <button
+                    onClick={() => {
+                      setTableId(null);
+                      setTable(null);
+                      setCart([]);
+                    }}
+                    className="bg-slate-100 hover:bg-slate-200 text-black py-2 px-4 rounded-xl border border-slate-200 text-xs transition font-normal shrink-0"
+                  >
+                    ← Back to Tables
+                  </button>
+                  <input
+                    type="text"
+                    value={customerSearchQuery}
+                    onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                    placeholder="Search food items..."
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-normal text-black focus:outline-none focus:border-slate-400 shadow-sm"
+                  />
+                </div>
+
+                {/* Categories Tab List */}
+                <div className="flex gap-1.5 overflow-x-auto pb-1 shrink-0 scrollbar-none text-[10px]">
+                  <button
+                    onClick={() => setActiveCategory(null)}
+                    className={`px-3 py-2 rounded-xl border transition whitespace-nowrap uppercase tracking-wider font-normal ${activeCategory === null
+                        ? 'bg-slate-900 border-slate-900 text-white shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                  >
+                    All Items
+                  </button>
+                  {restaurantCategories.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setActiveCategory(cat.id)}
+                      className={`px-3 py-2 rounded-xl border transition whitespace-nowrap uppercase tracking-wider font-normal ${activeCategory === cat.id
+                          ? 'bg-slate-900 border-slate-900 text-white shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                    >
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Food Items List */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 overflow-y-auto flex-grow pr-1">
+                  {filteredMenuItems.map(item => (
+                    <div
+                      key={item.id}
+                      onClick={() => addMenuItemToCart(item)}
+                      className="bg-white p-4 rounded-xl border border-slate-200 hover:border-slate-350 hover:shadow-sm cursor-pointer transition flex flex-col justify-between text-left space-y-2 group select-none"
+                    >
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <span className="text-xs font-semibold text-black leading-tight">
+                            {item.name}
+                          </span>
+                          <span className={`text-[7px] font-bold px-1 py-0.5 rounded border ${item.isVeg ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
+                            }`}>
+                            {item.isVeg ? 'VEG' : 'MEAT'}
+                          </span>
+                        </div>
+                        <p className="text-[9px] text-slate-400 font-normal leading-normal mt-1 line-clamp-2">
+                          {item.description || 'Delicious freshly prepared dish.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-50">
+                        <span className="text-xs font-semibold text-black">₹{item.price.toFixed(2)}</span>
+                        <span className="text-emerald-600 group-hover:text-emerald-700 font-semibold text-[10px] uppercase tracking-wider">
+                          + Add
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right Panel - Live Order Cart */}
+              <div className="lg:col-span-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col max-h-[80vh] h-full overflow-hidden">
+                <h3 className="font-normal text-black text-sm uppercase tracking-wider pb-3 border-b border-slate-100 flex justify-between items-center shrink-0">
+                  <span>Live Order - {table?.tableNumber}</span>
+                  <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+                    {cart.length} items
+                  </span>
+                </h3>
+
+                {/* Items List */}
+                <div className="flex-grow overflow-y-auto my-4 space-y-2.5 pr-1">
+                  {cart.length > 0 ? (
+                    cart.map(item => (
+                      <div key={item.id} className="p-3 bg-slate-50/50 rounded-xl border border-slate-150 flex flex-col gap-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-normal text-black">{item.name}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => decrementCart(item.id)}
+                              className="w-5 h-5 flex items-center justify-center rounded border border-slate-200 bg-white text-black font-semibold text-xs"
+                            >
+                              -
+                            </button>
+                            <span className="w-3 text-center text-xs font-normal">{item.quantity}</span>
+                            <button
+                              onClick={() => incrementCart(item.id)}
+                              className="w-5 h-5 flex items-center justify-center rounded border border-slate-200 bg-white text-black font-semibold text-xs"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                        <input
+                          type="text"
+                          value={item.notes || ''}
+                          onChange={(e) => {
+                            const updatedCart = cart.map(c => c.id === item.id ? { ...c, notes: e.target.value } : c);
+                            setCart(updatedCart);
+                          }}
+                          placeholder="Special instructions..."
+                          className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-[9px] focus:outline-none focus:border-slate-400"
+                        />
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-24 text-center text-slate-400 font-normal uppercase tracking-wider text-xs">
+                      Cart is empty
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer calculations & submit */}
+                {cart.length > 0 && (
+                  <div className="border-t border-slate-100 pt-3 space-y-3 shrink-0 text-xs text-slate-650 font-normal">
+                    <div className="space-y-1 pb-2 border-b border-slate-100">
+                      <div className="flex justify-between">
+                        <span>Subtotal:</span>
+                        <span className="text-black">₹{subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Service Charge (5%):</span>
+                        <span className="text-black">₹{serviceCharge.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>GST Tax (5%):</span>
+                        <span className="text-black">₹{taxAmount.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center text-sm py-1 font-semibold text-black">
+                      <span className="uppercase tracking-wider">Total</span>
+                      <span className="text-base font-bold text-emerald-600">₹{grandTotal.toFixed(2)}</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1 font-normal text-xs">
+                      <button
+                        onClick={() => {
+                          setIsFullScreenOrder(false);
+                          setTableId(null);
+                          setTable(null);
+                          setCart([]);
+                        }}
+                        className="w-full bg-slate-100 hover:bg-slate-200 text-black py-2.5 rounded-xl border border-slate-200 transition uppercase tracking-wider cursor-pointer text-center"
+                      >
+                        Save Order
+                      </button>
+                      <button
+                        onClick={handleSendToKitchen}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl transition uppercase tracking-wider shadow-sm cursor-pointer text-center"
+                      >
+                        Send To Kitchen
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* MAIN SCREEN */
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-black antialiased -m-8 p-8 max-w-4xl mx-auto w-full">
+        {/* Top Header Section */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-3xl border border-slate-200 shadow-sm mb-6 shrink-0 text-left">
+          <div className="space-y-1">
+            <h1 className="text-lg font-normal text-black uppercase tracking-wider">Bistro POS Console</h1>
+            <p className="text-xs text-slate-400 font-normal">Restaurant Manager Order Taking System</p>
+          </div>
+          <button
+            onClick={() => {
+              setIsRestaurantMode(false);
+              window.history.pushState({}, '', '/billing');
+            }}
+            className="mt-3 sm:mt-0 bg-slate-100 hover:bg-slate-200 text-black text-xs px-4 py-2 rounded-xl border border-slate-200 font-normal transition uppercase tracking-wider shrink-0"
+          >
+            Switch to Retail
+          </button>
+        </div>
+
+        {/* Large, Very Visible Take New Order Action Button */}
+        <div className="mb-8 shrink-0">
+          <button
+            onClick={() => {
+              setIsFullScreenOrder(true);
+              setTableId(null);
+              setTable(null);
+              setCart([]);
+              setSpecialInstructions('');
+            }}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 rounded-3xl border border-emerald-500 shadow-md transition uppercase tracking-widest text-sm font-semibold cursor-pointer text-center flex items-center justify-center space-x-2.5"
+          >
+            <span className="text-xl">➕</span>
+            <span>Take New Order</span>
+          </button>
+        </div>
+
+        {/* ACTIVE TABLES SECTION */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex-grow text-left flex flex-col">
+          <div className="border-b border-slate-100 pb-3 mb-4 shrink-0">
+            <h2 className="text-sm font-semibold text-black uppercase tracking-wider">Active Tables</h2>
+            <p className="text-[11px] text-slate-400 font-normal mt-0.5">Tables currently dining with running bills.</p>
+          </div>
+
+          <div className="overflow-y-auto flex-grow pr-1">
+            {tables.filter(t => t.status !== 'AVAILABLE' && t.status !== 'CLEANING').length === 0 ? (
+              <div className="py-24 text-center text-slate-400 font-normal uppercase tracking-wider text-xs">
+                No active tables currently. Click "Take New Order" above to seat customers.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {tables.filter(t => t.status !== 'AVAILABLE' && t.status !== 'CLEANING').map(t => {
+                  const totalAmount = t.kitchenOrders?.[0]?.totalAmount || 0;
+                  const itemsCount = t.kitchenOrders?.[0]?.items?.reduce((acc: number, it: any) => acc + it.quantity, 0) || 0;
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={async () => {
+                        await loadTableActiveOrder(t);
+                        setActiveRunningBillTable(t);
+                      }}
+                      className="p-4 bg-white border border-slate-200 hover:border-slate-350 rounded-2xl cursor-pointer hover:shadow-sm transition flex flex-col justify-between min-h-[100px]"
+                    >
+                      <div className="flex justify-between items-start">
+                        <span className="text-sm font-semibold text-black">{t.tableNumber}</span>
+                        <span className={`text-[8px] px-2 py-0.5 rounded-full uppercase border font-semibold ${getStatusColor(t.status)}`}>
+                          {getStatusText(t.status)}
+                        </span>
+                      </div>
+                      <div className="pt-2 border-t border-slate-50 flex justify-between items-center text-xs text-slate-500 font-normal mt-2">
+                        <span>{itemsCount} Items</span>
+                        <span className="font-bold text-emerald-600">₹{totalAmount.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RUNNING BILL SCREEN OVERLAY MODAL */}
+        {activeRunningBillTable && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-[fadeIn_0.15s_ease-out]">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-md w-full shadow-2xl flex flex-col max-h-[85vh] text-left">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3 shrink-0">
+                <div>
+                  <h3 className="text-sm font-semibold text-black uppercase tracking-wider">Running Bill - {activeRunningBillTable.tableNumber}</h3>
+                  <span className={`text-[8px] font-semibold px-2 py-0.5 rounded-full uppercase border mt-1 inline-block ${getStatusColor(activeRunningBillTable.status)}`}>
+                    {getStatusText(activeRunningBillTable.status)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setActiveRunningBillTable(null)}
+                  className="text-slate-400 hover:text-black font-semibold p-1 text-sm"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              {/* Items List */}
+              <div className="flex-grow overflow-y-auto my-4 space-y-2 pr-1 font-normal text-xs text-black">
+                {cart.map((item, idx) => (
+                  <div key={idx} className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-150 flex justify-between items-center">
+                    <div>
+                      <span className="font-normal block text-black">{item.name}</span>
+                      {item.notes && <span className="text-[8px] text-slate-450 italic">({item.notes})</span>}
+                    </div>
+                    <div className="text-right font-semibold">
+                      <span className="text-slate-500 mr-2">Qty {item.quantity}</span>
+                      <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Summary and Buttons */}
+              <div className="border-t border-slate-100 pt-3 space-y-4 shrink-0 text-xs">
+                <div className="flex justify-between items-center font-normal">
+                  <span className="text-slate-500 uppercase tracking-wider text-[10px]">Grand Total</span>
+                  <span className="text-sm font-bold text-black">₹{grandTotal.toFixed(2)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 font-normal text-xs">
+                  <button
+                    onClick={() => {
+                      setTableId(activeRunningBillTable.id);
+                      setTable(activeRunningBillTable);
+                      setIsFullScreenOrder(true);
+                      setActiveRunningBillTable(null);
+                    }}
+                    className="w-full bg-slate-100 hover:bg-slate-200 text-black py-2.5 rounded-xl border border-slate-200 transition text-center uppercase tracking-wider cursor-pointer"
+                  >
+                    Add More Items
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await auth.apiRequest(`/restaurant/tables/${activeRunningBillTable.id}/status`, {
+                          method: 'PUT',
+                          body: JSON.stringify({ status: 'BILLING_PENDING' })
+                        });
+                        // Clear activebilltable overlay and trigger payment modal directly
+                        setTableId(activeRunningBillTable.id);
+                        setTable(activeRunningBillTable);
+                        setActiveRunningBillTable(null);
+                        setShowPaymentModal(true);
+                      } catch (e) {
+                        showToast('Failed to generate bill', 'error');
+                      }
+                    }}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl transition text-center uppercase tracking-wider shadow-sm cursor-pointer"
+                  >
+                    Generate Bill
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  if (isRestaurantMode && currentStep === 'BILLING' && !isProcessingPayment) {
+    return renderRestaurantBilling();
+  }
 
   return (
     <div className="min-h-screen bg-white text-[#000000] text-left font-['Trebuchet_MS'] text-[15px] select-none antialiased py-6 px-8 space-y-6">
@@ -1348,7 +2008,7 @@ export const POSBilling: React.FC = () => {
       {/* 3. STEP 2: PRINTABLE THERMAL RECEIPT PAGE */}
       {currentStep === 'INVOICE' && generatedInvoice && (
         <div className="min-h-screen bg-[#f8fafc] text-black font-sans py-8 px-4 sm:px-6 lg:px-8 relative animate-[fadeIn_0.3s_ease-out]">
-          
+
 
           {/* Sticky Top Right Action Bar */}
           <div className="no-print absolute top-6 right-6 z-10 flex gap-2">
@@ -1741,7 +2401,7 @@ export const POSBilling: React.FC = () => {
       {/* MODERN PAYMENT SELECTION POPUP */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div 
+          <div
             className="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-6 text-left flex flex-col"
             style={{ maxHeight: '90vh' }}
           >
@@ -1760,7 +2420,7 @@ export const POSBilling: React.FC = () => {
             </div>
 
             {/* Scrollable Content Area */}
-            <div 
+            <div
               className="flex-grow overflow-y-auto space-y-6 pr-1 no-scrollbar"
               style={{
                 scrollbarWidth: 'none',
@@ -1801,11 +2461,10 @@ export const POSBilling: React.FC = () => {
                       setSelectedPaymentMethod(method.id as any);
                       if (method.id !== 'CASH') setCashReceived('');
                     }}
-                    className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all cursor-pointer space-y-2 text-center ${
-                      selectedPaymentMethod === method.id
+                    className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all cursor-pointer space-y-2 text-center ${selectedPaymentMethod === method.id
                         ? `${method.color} shadow-sm font-bold scale-[1.02] border-2`
                         : 'border-[#E5E7EB] hover:border-slate-350 bg-white text-black hover:text-black font-semibold border'
-                    }`}
+                      }`}
                   >
                     <span className="text-3xl">{method.icon}</span>
                     <span className="text-xs font-bold">{method.label}</span>
@@ -1880,10 +2539,14 @@ export const POSBilling: React.FC = () => {
                 onClick={async () => {
                   setShowPaymentModal(false);
                   setPaymentNotes('');
-                  if (selectedPaymentMethod === 'CASH') {
-                    await createLocalOrder('CASH');
+                  if (isRestaurantMode) {
+                    await handleSettleTable(selectedPaymentMethod);
                   } else {
-                    await handleProceedToPayment(selectedPaymentMethod);
+                    if (selectedPaymentMethod === 'CASH') {
+                      await createLocalOrder('CASH');
+                    } else {
+                      await handleProceedToPayment(selectedPaymentMethod);
+                    }
                   }
                 }}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl transition cursor-pointer text-center uppercase tracking-wider"

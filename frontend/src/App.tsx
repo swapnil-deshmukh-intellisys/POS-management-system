@@ -40,8 +40,11 @@ import { Reservations } from './pages/Reservations';
 import { RecipeManagement } from './pages/RecipeManagement';
 import { OnlineOrders } from './pages/OnlineOrders';
 import { RestaurantReports } from './pages/RestaurantReports';
+import { RestaurantInventory } from './pages/RestaurantInventory';
 import { PublicQRMenu } from './pages/PublicQRMenu';
 import { WaiterDashboard } from './pages/WaiterDashboard';
+import { TakeOrder } from './pages/TakeOrder';
+import { GenerateBill } from './pages/GenerateBill';
 
 
 // Private Route Guard Component
@@ -103,6 +106,10 @@ const DashboardLayout: React.FC = () => {
             <Route path="/settings" element={<Settings />} />
 
             {/* Restaurant routes */}
+            <Route path="/restaurant/take-order" element={<TakeOrder />} />
+            <Route path="/take-order" element={<TakeOrder />} />
+            <Route path="/restaurant/generate-bill" element={<GenerateBill />} />
+            <Route path="/generate-bill" element={<GenerateBill />} />
             <Route path="/restaurant/tables" element={<TableManagement />} />
             <Route path="/restaurant/kitchen" element={<KitchenDisplay />} />
             <Route path="/restaurant/menu" element={<DigitalMenuBuilder />} />
@@ -112,6 +119,7 @@ const DashboardLayout: React.FC = () => {
             <Route path="/restaurant/online-orders" element={<OnlineOrders />} />
             <Route path="/restaurant/waiter-dashboard" element={<WaiterDashboard />} />
             <Route path="/restaurant/reports" element={<RestaurantReports />} />
+            <Route path="/restaurant/inventory" element={<RestaurantInventory />} />
             {/* Fallback to Dashboard */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

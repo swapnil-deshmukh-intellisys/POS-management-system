@@ -25,6 +25,8 @@ async function deductRecipeIngredients(menuItemId: string, quantity: number) {
 
     for (const ri of recipe.ingredients) {
       const reduction = ri.quantity * quantity;
+      
+      // 1. Deduct from original Ingredient table
       await prisma.ingredient.update({
         where: { id: ri.ingredientId },
         data: {
@@ -33,7 +35,67 @@ async function deductRecipeIngredients(menuItemId: string, quantity: number) {
           }
         }
       });
-      console.log(`[Inventory Auto] Deducted ${reduction} of ${ri.ingredient.name} from stock`);
+      console.log(`[Inventory Auto] Deducted ${reduction} of ${ri.ingredient.name} from original stock`);
+
+      // 2. Deduct from new RestaurantInventoryItem table if it exists
+      const invItem = await prisma.restaurantInventoryItem.findFirst({
+        where: { name: { equals: ri.ingredient.name, mode: 'insensitive' } }
+      });
+      if (invItem) {
+        const newStock = Math.max(0, invItem.currentStock - reduction);
+        
+        // Recalculate status
+        let newStatus = 'Normal';
+        if (newStock <= 0) {
+          newStatus = 'Out Of Stock';
+        } else if (newStock <= invItem.minimumStock) {
+          newStatus = 'Low Stock';
+        } else if (invItem.expiryDate) {
+          const now = new Date();
+          const expiry = new Date(invItem.expiryDate);
+          const diffTime = expiry.getTime() - now.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays <= 0) newStatus = 'Expired';
+          else if (diffDays <= 3) newStatus = 'Expiring Soon';
+        }
+
+        await prisma.restaurantInventoryItem.update({
+          where: { id: invItem.id },
+          data: {
+            currentStock: newStock,
+            status: newStatus,
+            lastUsedAt: new Date()
+          }
+        });
+
+        // Log movement
+        await prisma.restaurantInventoryMovement.create({
+          data: {
+            itemId: invItem.id,
+            type: 'Usage',
+            quantity: reduction,
+            notes: `Auto-deducted for MenuItem: ${recipe.name || 'Dish'}`
+          }
+        });
+
+        // If stock became low/out, generate a purchase request if one doesn't exist
+        if (newStatus === 'Low Stock' || newStatus === 'Out Of Stock') {
+          const existingReq = await prisma.restaurantPurchaseRequest.findFirst({
+            where: { itemId: invItem.id, status: 'Pending' }
+          });
+          if (!existingReq) {
+            await prisma.restaurantPurchaseRequest.create({
+              data: {
+                itemId: invItem.id,
+                itemName: invItem.name,
+                quantityRequired: invItem.minimumStock * 2,
+                reason: newStatus
+              }
+            });
+          }
+        }
+        console.log(`[Inventory Auto] Deducted ${reduction} of ${invItem.name} from Restaurant Inventory`);
+      }
     }
   } catch (err) {
     console.error('[Inventory Error] Failed to deduct ingredients:', err);
@@ -68,13 +130,41 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const todayOrders = await prisma.kitchenOrder.findMany({
+    const completedToday = await prisma.order.findMany({
       where: {
         createdAt: { gte: today },
-        status: { not: 'CANCELLED' }
+        status: 'COMPLETED'
       }
     });
-    const todaySales = todayOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+
+    const todayRevenue = completedToday.reduce((sum, o) => sum + o.totalPayable, 0);
+    const todayOrdersCount = completedToday.length;
+    const todayProfit = todayRevenue * 0.4; // 40% margin
+    const todayExpenses = todayRevenue * 0.6; // 60% expenses
+    const netProfit = todayProfit;
+
+    // Weekly and Monthly Metrics
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const completedWeekly = await prisma.order.findMany({
+      where: {
+        createdAt: { gte: oneWeekAgo },
+        status: 'COMPLETED'
+      }
+    });
+    const weeklyRevenue = completedWeekly.reduce((sum, o) => sum + o.totalPayable, 0);
+    const weeklyProfit = weeklyRevenue * 0.4;
+
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+    const completedMonthly = await prisma.order.findMany({
+      where: {
+        createdAt: { gte: oneMonthAgo },
+        status: 'COMPLETED'
+      }
+    });
+    const monthlyRevenue = completedMonthly.reduce((sum, o) => sum + o.totalPayable, 0);
+    const monthlyProfit = monthlyRevenue * 0.4;
 
     // Tables Count
     const totalTables = await prisma.restaurantTable.count({ where: { restaurantId: restId } });
@@ -145,8 +235,37 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
       };
     }).sort((a, b) => b.orders - a.orders).slice(0, 5);
 
+    // Most Active Tables
+    const histories = await prisma.billingHistory.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    const tableCounts: Record<string, number> = {};
+    histories.forEach(h => {
+      tableCounts[h.tableNumber] = (tableCounts[h.tableNumber] || 0) + 1;
+    });
+    const mostActiveTables = Object.entries(tableCounts)
+      .map(([tableNumber, count]) => ({ tableNumber, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    // Most Active Waiters
+    const mostActiveWaiters = await prisma.restaurantWaiter.findMany({
+      where: { restaurantId: restId },
+      orderBy: { ordersServed: 'desc' },
+      take: 5
+    });
+
     return res.status(200).json({
-      todaySales,
+      todayRevenue,
+      todayOrders: todayOrdersCount,
+      todayProfit,
+      todayExpenses,
+      netProfit,
+      weeklyRevenue,
+      weeklyProfit,
+      monthlyRevenue,
+      monthlyProfit,
       tables: {
         total: totalTables,
         occupied: occupiedTables,
@@ -161,6 +280,8 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
       reservationsToday,
       topDishes,
       popularCategories,
+      mostActiveTables,
+      mostActiveWaiters,
       lowIngredientStock: lowStock.length,
       pendingOnlineOrders: pendingOnline
     });
@@ -1060,14 +1181,24 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
       });
     }
 
-    // If served, clean/free up the table if it was table order
-    if (status === 'SERVED' && order.tableId) {
-      const isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'SUCCESS';
+    // Sync order status changes with corresponding table status
+    if (order.tableId) {
+      let tableStatusUpdate = 'OCCUPIED';
+      if (status === 'PREPARING') {
+        tableStatusUpdate = 'COOKING';
+      } else if (status === 'READY') {
+        tableStatusUpdate = 'READY';
+      } else if (status === 'SERVED' || status === 'SERVING') {
+        tableStatusUpdate = 'SERVED';
+      } else if (status === 'CANCELLED') {
+        tableStatusUpdate = 'AVAILABLE';
+      }
+
       await prisma.restaurantTable.update({
         where: { id: order.tableId },
         data: {
-          status: isPaid ? 'CLEANING' : 'BILLING_PENDING',
-          activeOrderId: null
+          status: tableStatusUpdate,
+          ...(status === 'CANCELLED' ? { activeOrderId: null } : {})
         }
       });
 
@@ -2156,13 +2287,64 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
   const { tableId, source, items, notes, waiterId, paymentMethod, paymentStatus } = req.body;
   try {
     let tableName = 'Takeaway';
+    let existingOrder = null;
+
     if (tableId) {
       const table = await prisma.restaurantTable.findUnique({ where: { id: tableId } });
       if (table) {
         tableName = table.tableNumber;
+        if (table.activeOrderId) {
+          existingOrder = await prisma.kitchenOrder.findUnique({
+            where: { id: table.activeOrderId },
+            include: { items: true }
+          });
+        }
       }
     }
 
+    const kotNum = Math.floor(100 + Math.random() * 900);
+    const kotLabel = `KOT-${kotNum}`;
+
+    if (existingOrder) {
+      // Append items to existing occupied table order
+      let newTotal = existingOrder.totalAmount;
+      const addedItems = [];
+
+      for (const it of items) {
+        newTotal += it.unitPrice * it.quantity;
+        const createdItem = await prisma.kitchenOrderItem.create({
+          data: {
+            kitchenOrderId: existingOrder.id,
+            menuItemId: it.menuItemId,
+            quantity: it.quantity,
+            notes: it.notes ? `[${kotLabel}] ${it.notes}` : `[${kotLabel}]`,
+            unitPrice: it.unitPrice
+          },
+          include: { menuItem: true }
+        });
+        addedItems.push(createdItem);
+        await deductRecipeIngredients(it.menuItemId, it.quantity);
+      }
+
+      // Update order status back to NEW so kitchen displays it as a fresh order batch
+      const updatedOrder = await prisma.kitchenOrder.update({
+        where: { id: existingOrder.id },
+        data: {
+          totalAmount: newTotal,
+          status: 'NEW',
+          notes: notes ? (existingOrder.notes ? `${existingOrder.notes}; ${notes}` : notes) : existingOrder.notes
+        },
+        include: {
+          items: { include: { menuItem: true } },
+          table: true
+        }
+      });
+
+      broadcast('NEW_ORDER', updatedOrder);
+      return res.status(200).json(updatedOrder);
+    }
+
+    // Normal new order creation flow
     let total = 0;
     const consolidatedItemsMap = new Map<string, any>();
     for (const it of items) {
@@ -2177,7 +2359,7 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
         consolidatedItemsMap.set(key, {
           menuItemId: it.menuItemId,
           quantity: it.quantity,
-          notes: it.notes || null,
+          notes: it.notes ? `[${kotLabel}] ${it.notes}` : `[${kotLabel}]`,
           unitPrice: it.unitPrice
         });
       }
@@ -2664,22 +2846,30 @@ export const seedDummyReadyOrders = async (req: Request, res: Response) => {
       });
     }
 
-    // 7. Insert the 20 dummy orders distributed across KDS states
+    // Reset table statuses and activeOrderIds first
+    await prisma.restaurantTable.updateMany({
+      where: { restaurantId: restId },
+      data: {
+        status: 'AVAILABLE',
+        activeOrderId: null
+      }
+    });
+
+    // 7. Insert the 4 specific dummy orders matching requirements exactly
     const dummyOrders = [
       {
         tableNum: '1',
         waiter: 'Rahul',
-        status: 'NEW',
+        status: 'READY',
         items: [
-          { name: 'Fish Fry', qty: 2 },
-          { name: 'Roti', qty: 4 },
-          { name: 'Water Bottle', qty: 1 }
+          { name: 'Chicken Biryani', qty: 2 },
+          { name: 'Coke', qty: 2 }
         ]
       },
       {
         tableNum: '2',
         waiter: 'Rahul',
-        status: 'NEW',
+        status: 'PREPARING',
         items: [
           { name: 'Paneer Tikka', qty: 1 },
           { name: 'Butter Naan', qty: 3 }
@@ -2688,170 +2878,19 @@ export const seedDummyReadyOrders = async (req: Request, res: Response) => {
       {
         tableNum: '3',
         waiter: 'Akshay',
-        status: 'NEW',
+        status: 'SERVED',
         items: [
-          { name: 'Chicken Biryani', qty: 2 },
-          { name: 'Coke', qty: 2 }
+          { name: 'Fish Fry', qty: 2 },
+          { name: 'Roti', qty: 4 }
         ]
       },
       {
         tableNum: '4',
         waiter: 'Ritesh',
-        status: 'NEW',
+        status: 'SERVED',
         items: [
           { name: 'Veg Crispy', qty: 1 },
-          { name: 'Manchurian', qty: 1 },
-          { name: 'Veg Fried Rice', qty: 1 }
-        ]
-      },
-      {
-        tableNum: '5',
-        waiter: 'Akshay',
-        status: 'NEW',
-        items: [
-          { name: 'Pomfret Fry', qty: 2 },
-          { name: 'Jeera Rice Full', qty: 1 }
-        ]
-      },
-      {
-        tableNum: '6',
-        waiter: 'Akshay',
-        status: 'NEW',
-        items: [
-          { name: 'Garlic Bread', qty: 2 },
-          { name: 'Sprite', qty: 2 }
-        ]
-      },
-      {
-        tableNum: '7',
-        waiter: 'Ritesh',
-        status: 'NEW',
-        items: [
-          { name: 'Chicken Kadai', qty: 1 },
-          { name: 'Butter Roti', qty: 4 },
-          { name: 'Water Bottle', qty: 2 }
-        ]
-      },
-      {
-        tableNum: '8',
-        waiter: 'Ritesh',
-        status: 'NEW',
-        items: [
-          { name: 'Veg Fried Rice', qty: 2 },
-          { name: 'Sprite', qty: 2 }
-        ]
-      },
-      {
-        tableNum: '9',
-        waiter: 'Rahul',
-        status: 'NEW',
-        items: [
-          { name: 'Margherita Pizza', qty: 1 },
-          { name: 'Pepsi', qty: 2 }
-        ]
-      },
-      {
-        tableNum: '10',
-        waiter: 'Akshay',
-        status: 'NEW',
-        items: [
-          { name: 'Paneer Butter Masala', qty: 1 },
-          { name: 'Butter Naan', qty: 3 },
-          { name: 'Lassi', qty: 1 }
-        ]
-      },
-      {
-        tableNum: '11',
-        waiter: 'Ritesh',
-        status: 'PREPARING',
-        items: [
-          { name: 'Hakka Noodles', qty: 2 },
-          { name: 'Sprite', qty: 2 }
-        ]
-      },
-      {
-        tableNum: '12',
-        waiter: 'Adesh',
-        status: 'PREPARING',
-        items: [
-          { name: 'Cheese Burger', qty: 2 },
-          { name: 'French Fries', qty: 2 },
-          { name: 'Coke', qty: 2 }
-        ]
-      },
-      {
-        tableNum: '13',
-        waiter: 'Rahul',
-        status: 'PREPARING',
-        items: [
-          { name: 'Prawns Masala', qty: 1 },
-          { name: 'Butter Naan', qty: 2 }
-        ]
-      },
-      {
-        tableNum: '14',
-        waiter: 'Akshay',
-        status: 'PREPARING',
-        items: [
-          { name: 'Hakka Noodles', qty: 1 },
           { name: 'Manchurian', qty: 1 }
-        ]
-      },
-      {
-        tableNum: '15',
-        waiter: 'Ritesh',
-        status: 'PREPARING',
-        items: [
-          { name: 'Paneer Tikka', qty: 1 },
-          { name: 'Lassi', qty: 2 }
-        ]
-      },
-      {
-        tableNum: '16',
-        waiter: 'Adesh',
-        status: 'READY',
-        items: [
-          { name: 'Chicken Burger', qty: 2 },
-          { name: 'French Fries', qty: 1 },
-          { name: 'Pepsi', qty: 1 }
-        ]
-      },
-      {
-        tableNum: '17',
-        waiter: 'Rahul',
-        status: 'READY',
-        items: [
-          { name: 'Veg Fried Rice', qty: 1 },
-          { name: 'Manchurian', qty: 1 }
-        ]
-      },
-      {
-        tableNum: '18',
-        waiter: 'Akshay',
-        status: 'READY',
-        items: [
-          { name: 'Margherita Pizza', qty: 1 },
-          { name: 'Garlic Bread', qty: 1 },
-          { name: 'Sprite', qty: 1 }
-        ]
-      },
-      {
-        tableNum: '19',
-        waiter: 'Ritesh',
-        status: 'READY',
-        items: [
-          { name: 'Pomfret Fry', qty: 1 },
-          { name: 'Jeera Rice Full', qty: 1 }
-        ]
-      },
-      {
-        tableNum: '20',
-        waiter: 'Adesh',
-        status: 'READY',
-        items: [
-          { name: 'Chicken Kadai', qty: 1 },
-          { name: 'Butter Naan', qty: 2 },
-          { name: 'Water Bottle', qty: 1 }
         ]
       }
     ];
@@ -2876,7 +2915,6 @@ export const seedDummyReadyOrders = async (req: Request, res: Response) => {
         };
       });
 
-      // Spread ready/created timestamps slightly
       const orderIdx = dummyOrders.indexOf(dOrder);
       const now = new Date();
       const createdAtTime = new Date(now.getTime() - (orderIdx * 2 * 60 * 1000) - 10 * 60 * 1000);
@@ -2895,6 +2933,30 @@ export const seedDummyReadyOrders = async (req: Request, res: Response) => {
           items: {
             create: orderItemsData
           }
+        }
+      });
+
+      // Update table to link activeOrderId and set corresponding table status
+      let tableStatus = 'AVAILABLE';
+      if (dOrder.status === 'NEW' || dOrder.status === 'ACCEPTED') {
+        tableStatus = 'OCCUPIED';
+      } else if (dOrder.status === 'PREPARING') {
+        tableStatus = 'COOKING';
+      } else if (dOrder.status === 'READY') {
+        tableStatus = 'READY';
+      } else if (dOrder.status === 'SERVED' || dOrder.status === 'SERVING') {
+        tableStatus = 'SERVED';
+      }
+
+      if (dOrder.tableNum === '4') {
+        tableStatus = 'BILLING_PENDING';
+      }
+
+      await prisma.restaurantTable.update({
+        where: { id: tableId },
+        data: {
+          status: tableStatus,
+          activeOrderId: kOrder.id
         }
       });
 
@@ -2932,9 +2994,257 @@ export const seedDummyReadyOrders = async (req: Request, res: Response) => {
       message: 'Seeded dummy ready orders'
     });
 
-    return res.status(200).json({ message: '20 realistic dummy orders seeded successfully across statuses!' });
+    return res.status(200).json({ message: 'Dummy orders seeded successfully for T1-T4 matching your test scenario!' });
   } catch (err: any) {
     console.error('Seeding error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const settleTableBill = async (req: Request, res: Response) => {
+  const { tableId, paymentMethod, discount, serviceCharge, tax, customerId, cashierName, customerMobile } = req.body;
+  try {
+    if (!tableId) {
+      return res.status(400).json({ message: 'tableId is required' });
+    }
+
+    const table = await prisma.restaurantTable.findUnique({
+      where: { id: tableId }
+    });
+
+    if (!table) {
+      return res.status(404).json({ message: 'Table not found' });
+    }
+
+    if (!table.activeOrderId) {
+      return res.status(400).json({ message: 'No active order for this table' });
+    }
+
+    const kitchenOrder = await prisma.kitchenOrder.findUnique({
+      where: { id: table.activeOrderId },
+      include: {
+        items: {
+          include: {
+            menuItem: true
+          }
+        },
+        waiter: true
+      }
+    });
+
+    if (!kitchenOrder) {
+      return res.status(404).json({ message: 'Active kitchen order not found' });
+    }
+
+    const subtotal = kitchenOrder.totalAmount;
+    const discAmount = parseFloat(String(discount || 0));
+    const scAmount = parseFloat(String(serviceCharge || 0));
+    const taxAmount = parseFloat(String(tax || 0));
+    const totalPayable = Math.max(0, subtotal - discAmount + scAmount + taxAmount);
+
+    const defaultBranch = await prisma.branch.findFirst();
+    const branchId = defaultBranch ? defaultBranch.id : null;
+    const defaultUser = await prisma.user.findFirst({ where: { role: 'ADMIN' } }) || await prisma.user.findFirst();
+    const cashierId = defaultUser ? defaultUser.id : 'default-cashier';
+
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const invoiceNumber = `INV-${dateStr}-${randomSuffix}`;
+
+    // Settle Order and save POS models
+    const posOrderItems = [];
+    for (const it of kitchenOrder.items) {
+      const itemName = it.menuItem?.name || 'Restaurant Dish';
+      const itemPrice = it.menuItem?.price || it.unitPrice;
+
+      let product = await prisma.product.findFirst({ where: { name: itemName } });
+      if (!product) {
+        let category = await prisma.category.findFirst({ where: { name: 'Restaurant Menu' } });
+        if (!category) {
+          category = await prisma.category.create({
+            data: { name: 'Restaurant Menu', status: 'Active' }
+          });
+        }
+        product = await prisma.product.create({
+          data: {
+            name: itemName,
+            sku: `REST-${it.menuItemId.slice(0, 8).toUpperCase()}`,
+            sellingPrice: itemPrice,
+            costPrice: itemPrice * 0.5,
+            categoryId: category.id,
+            status: 'IN_STOCK'
+          }
+        });
+      }
+
+      posOrderItems.push({
+        productId: product.id,
+        quantity: it.quantity,
+        unitPrice: itemPrice,
+        discount: 0,
+        total: itemPrice * it.quantity
+      });
+    }
+
+    const posOrder = await prisma.order.create({
+      data: {
+        invoiceNumber,
+        customerId: customerId || null,
+        branchId,
+        cashierId,
+        subtotal,
+        discount: discAmount,
+        tax: taxAmount,
+        totalPayable,
+        status: 'COMPLETED',
+        paymentMethod: paymentMethod || 'CASH',
+        items: {
+          create: posOrderItems
+        }
+      }
+    });
+
+    const qrToken = crypto.randomUUID();
+    const invoiceUrl = `/invoice/${invoiceNumber}?token=${qrToken}`;
+    const invoice = await prisma.invoice.create({
+      data: {
+        invoiceNumber,
+        orderId: posOrder.id,
+        invoiceType: 'GST',
+        qrToken,
+        invoiceUrl
+      }
+    });
+
+    await prisma.payment.create({
+      data: {
+        orderId: posOrder.id,
+        invoiceId: invoice.id,
+        amount: totalPayable,
+        paymentMethod: paymentMethod || 'CASH',
+        status: 'SUCCESS',
+        cashierId
+      }
+    });
+
+    // Create PDF Invoice
+    const publicInvoicesDir = path.join(__dirname, '..', '..', 'public', 'invoices');
+    if (!fs.existsSync(publicInvoicesDir)) {
+      fs.mkdirSync(publicInvoicesDir, { recursive: true });
+    }
+
+    const pdfPath = path.join(publicInvoicesDir, `${invoiceNumber}.pdf`);
+    const doc = new PDFDocument({ margin: 30 });
+    const writeStream = fs.createWriteStream(pdfPath);
+    doc.pipe(writeStream);
+
+    doc.fontSize(18).text('GOURMET BISTRO', { align: 'center' });
+    doc.fontSize(9).text('123 Main St, Central Diner', { align: 'center' });
+    doc.text('GSTIN: 27AAAAA1111A1Z1', { align: 'center' });
+    doc.moveDown(1.5);
+
+    doc.fontSize(10).text(`Invoice Number: ${invoiceNumber}`);
+    doc.text(`Order Number: ${posOrder.id.slice(-6).toUpperCase()}`);
+    doc.text(`Table Number: ${table.tableNumber}`);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')} ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`);
+    doc.text(`Payment Method: ${paymentMethod}`);
+    doc.moveDown(1);
+
+    doc.text('-----------------------------------------------------------------------------------');
+    doc.text('Item Description                     Qty       Unit Price      Total');
+    doc.text('-----------------------------------------------------------------------------------');
+
+    for (const it of kitchenOrder.items) {
+      const name = it.menuItem?.name || 'Dish';
+      const line = `${name.padEnd(35)} ${String(it.quantity).padEnd(9)} ₹${String(it.unitPrice).padEnd(14)} ₹${String(it.unitPrice * it.quantity)}`;
+      doc.text(line);
+    }
+
+    doc.text('-----------------------------------------------------------------------------------');
+    doc.moveDown(0.5);
+    doc.text(`Subtotal: ₹${subtotal.toFixed(2)}`, { align: 'right' });
+    if (discAmount > 0) doc.text(`Discount: -₹${discAmount.toFixed(2)}`, { align: 'right' });
+    if (scAmount > 0) doc.text(`Service Charge: ₹${scAmount.toFixed(2)}`, { align: 'right' });
+    doc.text(`GST (${taxAmount > 0 ? '18%' : '0%'}): ₹${taxAmount.toFixed(2)}`, { align: 'right' });
+    doc.font('Helvetica-Bold').fontSize(11).text(`Grand Total Paid: ₹${totalPayable.toFixed(2)}`, { align: 'right' });
+    doc.font('Helvetica');
+    doc.moveDown(2);
+    doc.fontSize(10).text('Thank you for dining with us!', { align: 'center' });
+
+    doc.end();
+
+    const pdfUrl = `/public/invoices/${invoiceNumber}.pdf`;
+    await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { pdfUrl }
+    });
+
+    // Update table status to AVAILABLE and clear activeOrderId
+    await prisma.restaurantTable.update({
+      where: { id: tableId },
+      data: {
+        status: 'AVAILABLE',
+        activeOrderId: null
+      }
+    });
+
+    // Update KitchenOrder status to PAID / COMPLETED
+    await prisma.kitchenOrder.update({
+      where: { id: kitchenOrder.id },
+      data: {
+        paymentStatus: 'PAID',
+        paymentMethod: paymentMethod || 'CASH',
+        status: 'SERVED'
+      }
+    });
+
+    // Update waiter stats
+    if (kitchenOrder.waiterId) {
+      await prisma.restaurantWaiter.update({
+        where: { id: kitchenOrder.waiterId },
+        data: {
+          ordersServed: { increment: 1 },
+          salesHandled: { increment: totalPayable }
+        }
+      });
+    }
+
+    // Save to BillingHistory model
+    const itemsStr = kitchenOrder.items.map(it => `${it.menuItem?.name || 'Dish'} x ${it.quantity}`).join(', ');
+    const history = await prisma.billingHistory.create({
+      data: {
+        invoiceNumber,
+        tableNumber: table.tableNumber,
+        orderSource: kitchenOrder.source || 'WALK_IN',
+        paymentMode: paymentMethod || 'CASH',
+        items: itemsStr,
+        totalAmount: totalPayable,
+        gst: taxAmount,
+        waiterName: kitchenOrder.waiter?.name || 'Self Service',
+        date: new Date().toLocaleDateString('en-GB'),
+        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+      }
+    });
+
+    broadcast('NOTIFICATION', {
+      type: 'TABLE_STATUS_CHANGE',
+      tableId,
+      status: 'AVAILABLE',
+      message: `${table.tableNumber} bill settled.`
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Bill settled and table is now in AVAILABLE status.',
+      invoice: {
+        invoiceNumber,
+        pdfUrl,
+        totalAmount: totalPayable
+      },
+      history
+    });
+  } catch (err: any) {
+    console.error('Error settling table bill:', err);
     return res.status(500).json({ error: err.message });
   }
 };
