@@ -425,6 +425,16 @@ model ShopSettings {
   whatsappAutoMsgEnabled Boolean  @default(false) @map("whatsapp_auto_msg_enabled")
   whatsappBusinessNumber String?  @map("whatsapp_business_number")
   whatsappTemplateId     String?  @map("whatsapp_template_id")
+  website                String?  @map("website")
+  digitalSignature       String?  @map("digital_signature")
+  officialStamp          String?  @map("official_stamp")
+  businessEmail          String?  @map("business_email")
+  smtpHost               String?  @map("smtp_host")
+  smtpPort               Int?     @map("smtp_port")
+  smtpUsername           String?  @map("smtp_username")
+  smtpPassword           String?  @map("smtp_password")
+  ownerName              String?  @map("owner_name")
+  autoOpenPrintPreview   Boolean  @default(false) @map("auto_open_print_preview")
 
   @@map("shop_settings")
 }
@@ -513,6 +523,11 @@ model PurchaseOrder {
   createdAt            DateTime             @default(now()) @map("created_at")
   updatedAt            DateTime             @updatedAt @map("updated_at")
   items                Json
+  printedBy            String?              @map("printed_by")
+  printDate            DateTime?            @map("print_date")
+  numberOfPrints       Int                  @default(0) @map("number_of_prints")
+  whatsappSentAt       DateTime?            @map("whatsapp_sent_at")
+  emailSentAt          DateTime?            @map("email_sent_at")
   grns                 GoodsReceiveNote[]
   invoices             SupplierInvoice[]
   returns              SupplierReturn[]
@@ -523,6 +538,7 @@ model PurchaseOrder {
   refundsList          RefundLog[]
   replacements         Replacement[]
   returnsList          Return[]
+  kitchenRequests      KitchenStockRequest[]
 
   @@map("purchase_orders")
 }
@@ -1416,6 +1432,29 @@ model RestaurantPurchaseOrderItem {
   batchNumber     String?
 
   @@map("restaurant_purchase_order_items")
+}
+
+model SupplierActivity {
+  id        String   @id @default(uuid())
+  activity  String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("supplier_activity")
+}
+
+model KitchenStockRequest {
+  id              String         @id @default(uuid())
+  requestNo       String         @unique @map("request_no")
+  requestedBy     String         @map("requested_by")
+  requestDate     DateTime       @default(now()) @map("request_date")
+  status          String         @default("Pending") // Pending, Approved, Rejected, Converted
+  items           Json           // Array of: { productName, quantity, unit, notes }
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  purchaseOrderId String?        @map("purchase_order_id")
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+
+  @@map("kitchen_stock_requests")
 }
 
 

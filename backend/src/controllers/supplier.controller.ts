@@ -1,6 +1,9 @@
 import { Response } from 'express';
 import prisma from '../config/db';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { sendPurchaseOrderEmailService } from '../utils/email.service';
+import PDFDocument from 'pdfkit';
+import { broadcast } from '../utils/realtime';
 
 // Helper to seed initial sample data if DB is empty
 const ensureSampleDataExists = async () => {
@@ -440,27 +443,31 @@ export const createSupplier = async (req: AuthenticatedRequest, res: Response) =
   } = req.body;
 
   try {
-    if (!name || !companyName || !contactPerson || !mobile || !email || !gstNumber || !address || !city || !state || !pincode) {
-      return res.status(400).json({ message: 'Missing required fields' });
+    if (!name || !contactPerson || !mobile) {
+      return res.status(400).json({ message: 'Missing required fields (name, contactPerson, mobile)' });
     }
 
     const supplier = await prisma.supplier.create({
       data: {
         name,
-        companyName,
+        companyName: companyName || name,
         contactPerson,
         mobile,
-        whatsapp: whatsapp || null,
-        email,
-        gstNumber,
-        panNumber,
-        address,
-        city,
-        state,
-        pincode,
+        whatsapp: whatsapp || mobile,
+        email: email || `${name.toLowerCase().replace(/\s+/g, '')}@supplier.com`,
+        gstNumber: gstNumber || 'GST-PENDING',
+        panNumber: panNumber || null,
+        address: address || 'Address Details',
+        city: city || 'City',
+        state: state || 'State',
+        pincode: pincode || '400001',
         notes,
         rating: 0.0
       }
+    });
+
+    await prisma.supplierActivity.create({
+      data: { activity: `Supplier Added: ${name} (${companyName || name})` }
     });
 
     return res.status(201).json(supplier);
@@ -508,6 +515,11 @@ export const updateSupplier = async (req: AuthenticatedRequest, res: Response) =
         notes,
       }
     });
+
+    await prisma.supplierActivity.create({
+      data: { activity: `Supplier Details Updated: ${name || updated.name}` }
+    });
+
     return res.status(200).json(updated);
   } catch (error: any) {
     return res.status(500).json({ message: 'Internal server error', error: error.message });
@@ -517,7 +529,13 @@ export const updateSupplier = async (req: AuthenticatedRequest, res: Response) =
 export const deleteSupplier = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   try {
+    const existing = await prisma.supplier.findUnique({ where: { id } });
     await prisma.supplier.delete({ where: { id } });
+
+    await prisma.supplierActivity.create({
+      data: { activity: `Supplier Deleted: ${existing?.name || 'Unknown'}` }
+    });
+
     return res.status(200).json({ message: 'Deleted successfully' });
   } catch (error: any) {
     return res.status(500).json({ message: 'Internal server error', error: error.message });
@@ -546,7 +564,7 @@ export const getPurchaseOrders = async (req: AuthenticatedRequest, res: Response
 };
 
 export const createPurchaseOrder = async (req: AuthenticatedRequest, res: Response) => {
-  const { supplierId, expectedDeliveryDate, totalAmount, items, subtotal, taxAmount, discountAmount } = req.body;
+  const { supplierId, expectedDeliveryDate, totalAmount, items, subtotal, taxAmount, discountAmount, kitchenRequestId } = req.body;
   try {
     const deliveryDate = expectedDeliveryDate ? new Date(expectedDeliveryDate) : new Date();
 
@@ -643,6 +661,25 @@ export const createPurchaseOrder = async (req: AuthenticatedRequest, res: Respon
         notes: 'Purchase Order created.'
       }
     });
+
+    const supplierObj = await prisma.supplier.findUnique({ where: { id: supplierId } });
+    const supplierName = supplierObj ? supplierObj.name : 'Unknown';
+
+    await prisma.supplierActivity.create({
+      data: { activity: `Order Created: ${generatedOrderNumber} for ${supplierName}` }
+    });
+
+    if (kitchenRequestId) {
+      await prisma.kitchenStockRequest.update({
+        where: { id: kitchenRequestId },
+        data: { 
+          purchaseOrderId: po.id,
+          status: 'Converted'
+        }
+      });
+    }
+
+    broadcast('STOCK_REQUEST_MUTATED', po);
 
     return res.status(201).json(po);
   } catch (error: any) {
@@ -746,6 +783,7 @@ export const updatePurchaseOrderStatus = async (req: AuthenticatedRequest, res: 
       where: { id },
       data: { status }
     });
+    broadcast('STOCK_REQUEST_MUTATED', po);
     return res.status(200).json(po);
   } catch (error: any) {
     return res.status(500).json({ message: 'Internal server error', error: error.message });
@@ -1535,6 +1573,430 @@ export const getAISourcingAnalytics = async (req: AuthenticatedRequest, res: Res
     });
   } catch (error: any) {
     console.error('Error fetching AI analytics:', error);
+    return res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+export const getSupplierActivities = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const activities = await prisma.supplierActivity.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    return res.status(200).json(activities);
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+export const sendPurchaseOrderWhatsApp = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { whatsapp } = req.body;
+  try {
+    const po = await prisma.purchaseOrder.findUnique({
+      where: { id },
+      include: { supplier: true }
+    });
+
+    if (!po) {
+      return res.status(404).json({ message: 'Purchase Order not found' });
+    }
+
+    let targetWhatsApp = whatsapp || po.supplier.whatsapp || po.supplier.mobile || '';
+
+    // Clean formatting
+    targetWhatsApp = targetWhatsApp.replace(/\s+/g, '').replace(/[^0-9]/g, '');
+
+    if (!targetWhatsApp) {
+      return res.status(200).json({ 
+        success: false, 
+        error: 'MISSING_WHATSAPP_NUMBER', 
+        message: 'Supplier WhatsApp Number Not Found' 
+      });
+    }
+
+    // Save WhatsApp number if updated
+    if (whatsapp && whatsapp !== po.supplier.whatsapp) {
+      await prisma.supplier.update({
+        where: { id: po.supplierId },
+        data: { whatsapp }
+      });
+      po.supplier.whatsapp = whatsapp;
+    }
+
+    const settings = await prisma.shopSettings.findFirst();
+    const restName = settings?.shopName || 'Gourmet Kitchen';
+    const createdByName = req.user?.name || settings?.ownerName || 'Kitchen Manager';
+
+    const items = Array.isArray(po.items) ? po.items : [];
+    const itemsListText = items.map((it: any) => `• ${it.productName} - ${it.quantity} ${it.unit || 'Kg'}`).join('\n');
+
+    const messageText = `${restName}
+Purchase Order #${po.orderNumber}
+
+Supplier:
+${po.supplier.name}
+
+Required Items:
+${itemsListText}
+
+Created By:
+${createdByName}
+
+Please confirm availability.
+
+Thank You.`;
+
+    console.log(`[WhatsApp API Simulation] Target: +91 ${targetWhatsApp}`);
+    console.log(`Content:\n${messageText}`);
+
+    // Update PO status to Sent
+    const updated = await prisma.purchaseOrder.update({
+      where: { id },
+      data: { 
+        status: 'Sent',
+        whatsappSentAt: new Date()
+      }
+    });
+
+    // Log Activity
+    await prisma.supplierActivity.create({
+      data: { activity: `Order Sent: ${po.orderNumber} sent via WhatsApp to ${po.supplier.name} (${targetWhatsApp})` }
+    });
+
+    broadcast('STOCK_REQUEST_MUTATED', updated);
+
+    return res.status(200).json({ success: true, message: 'Purchase order sent via WhatsApp successfully', text: messageText });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+export const sendPurchaseOrderEmail = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { email } = req.body;
+  try {
+    const po = await prisma.purchaseOrder.findUnique({
+      where: { id },
+      include: { supplier: true }
+    });
+
+    if (!po) {
+      return res.status(404).json({ message: 'Purchase Order not found' });
+    }
+
+    const targetEmail = email || po.supplier.email || '';
+
+    if (!targetEmail || !targetEmail.includes('@')) {
+      return res.status(200).json({
+        success: false,
+        error: 'MISSING_EMAIL_ADDRESS',
+        message: 'Supplier Email Not Found'
+      });
+    }
+
+    // Save Email if updated
+    if (email && email !== po.supplier.email) {
+      await prisma.supplier.update({
+        where: { id: po.supplierId },
+        data: { email }
+      });
+      po.supplier.email = email;
+    }
+
+    const settings = await prisma.shopSettings.findFirst();
+    const createdByName = req.user?.name || settings?.ownerName || 'Kitchen Manager';
+    const dept = req.user?.role === 'ADMIN' ? 'Admin' : 'Kitchen';
+
+    const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 40 });
+      const chunks: any[] = [];
+      doc.on('data', chunk => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', err => reject(err));
+
+      // 1. HEADER SECTION (Business Details)
+      if (settings?.logo) {
+        try {
+          if (settings.logo.startsWith('data:image')) {
+            const base64Data = settings.logo.replace(/^data:image\/\w+;base64,/, "");
+            doc.image(Buffer.from(base64Data, 'base64'), 40, 40, { width: 60 });
+            doc.moveDown(2);
+          } else {
+            doc.text(`[Logo]`, 40, 40);
+          }
+        } catch (e) {
+          // If rendering fails, ignore
+        }
+      }
+
+      const topOffset = settings?.logo ? 110 : 40;
+      doc.fontSize(16).font('Helvetica-Bold').text(settings?.shopName || 'Gourmet Kitchen', 40, topOffset);
+      doc.fontSize(10).font('Helvetica').text(settings?.shopAddress || 'Business Address', 40, doc.y + 2);
+      doc.text(`Phone: ${settings?.mobile || 'N/A'} | Email: ${settings?.email || 'N/A'}`, 40, doc.y + 2);
+      if (settings?.gstNumber) {
+        doc.text(`GSTIN: ${settings.gstNumber}`, 40, doc.y + 2);
+      }
+      
+      doc.moveTo(40, doc.y + 10).lineTo(570, doc.y + 10).strokeColor('#e2e8f0').stroke();
+      doc.moveDown(2);
+
+      // 2. DOCUMENT TITLE & DETAILS
+      doc.fontSize(18).font('Helvetica-Bold').text('PURCHASE ORDER', 40, doc.y + 5);
+      doc.moveDown(0.5);
+
+      const detailsStartY = doc.y;
+      doc.fontSize(10).font('Helvetica-Bold').text('Order Details', 40, detailsStartY);
+      doc.font('Helvetica').text(`PO Number: ${po.orderNumber}`, 40, doc.y + 3);
+      doc.text(`Order Date: ${new Date(po.createdAt || po.orderDate).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}`, 40, doc.y + 2);
+      doc.text(`Order Time: ${new Date(po.createdAt || po.orderDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, 40, doc.y + 2);
+      doc.text(`Created By: ${createdByName}`, 40, doc.y + 2);
+
+      // Supplier Details Side
+      doc.font('Helvetica-Bold').text('Supplier Details', 320, detailsStartY);
+      doc.font('Helvetica').text(`Name: ${po.supplier.name}`, 320, doc.y + 3);
+      doc.text(`Contact Person: ${po.supplier.contactPerson}`, 320, doc.y + 2);
+      doc.text(`Mobile: ${po.supplier.mobile}`, 320, doc.y + 2);
+      if (po.supplier.whatsapp) doc.text(`WhatsApp: ${po.supplier.whatsapp}`, 320, doc.y + 2);
+      doc.text(`Email: ${po.supplier.email}`, 320, doc.y + 2);
+
+      doc.moveDown(2.5);
+
+      // 3. ITEM TABLE
+      doc.font('Helvetica-Bold').fontSize(11).text('ITEM TABLE', 40, doc.y);
+      doc.moveDown(0.5);
+
+      // Table Header
+      const tableHeadY = doc.y;
+      doc.fontSize(9).font('Helvetica-Bold');
+      doc.text('Item Name', 45, tableHeadY);
+      doc.text('Qty', 320, tableHeadY, { width: 40, align: 'right' });
+      doc.text('Unit', 390, tableHeadY, { width: 50 });
+      doc.text('Notes', 460, tableHeadY);
+      
+      doc.moveTo(40, tableHeadY + 15).lineTo(570, tableHeadY + 15).strokeColor('#cbd5e1').stroke();
+      doc.moveDown(1);
+
+      const items = Array.isArray(po.items) ? po.items : [];
+      let currentY = doc.y + 5;
+
+      doc.font('Helvetica').fontSize(9);
+      items.forEach((it: any) => {
+        doc.text(it.productName || 'N/A', 45, currentY, { width: 250 });
+        doc.text(String(it.quantity || 0), 320, currentY, { width: 40, align: 'right' });
+        doc.text(it.unit || 'Kg', 390, currentY, { width: 50 });
+        doc.text(it.notes || '-', 460, currentY, { width: 110 });
+        currentY += 20;
+      });
+
+      doc.moveTo(40, currentY + 5).lineTo(570, currentY + 5).strokeColor('#cbd5e1').stroke();
+      doc.moveDown(2.5);
+
+      // 4. SIGNATURES & STAMPS
+      const sigY = doc.y + 10;
+      doc.fontSize(10).font('Helvetica-Bold').text('Authorized Signature', 40, sigY);
+      if (settings?.digitalSignature) {
+        try {
+          if (settings.digitalSignature.startsWith('data:image')) {
+            const base64Data = settings.digitalSignature.replace(/^data:image\/\w+;base64,/, "");
+            doc.image(Buffer.from(base64Data, 'base64'), 40, sigY + 15, { width: 100, height: 40 });
+          }
+        } catch (e) {
+          // Ignore signature drawing error
+        }
+      }
+
+      doc.font('Helvetica-Bold').text('Official Business Stamp', 320, sigY);
+      if (settings?.officialStamp) {
+        try {
+          if (settings.officialStamp.startsWith('data:image')) {
+            const base64Data = settings.officialStamp.replace(/^data:image\/\w+;base64,/, "");
+            doc.image(Buffer.from(base64Data, 'base64'), 320, sigY + 15, { width: 60, height: 60 });
+          }
+        } catch (e) {
+          // Ignore stamp drawing error
+        }
+      }
+
+      doc.moveDown(7);
+
+      // 5. ORDER FOOTER & AUTHENTICITY SECTION
+      const authY = doc.y + 20;
+      doc.moveTo(40, authY).lineTo(570, authY).strokeColor('#cbd5e1').stroke();
+      
+      const footerStartY = authY + 10;
+      doc.fontSize(9).font('Helvetica-Bold').text('Prepared By', 40, footerStartY);
+      doc.font('Helvetica').fontSize(8).text(createdByName, 40, doc.y + 3);
+      
+      doc.fontSize(9).font('Helvetica-Bold').text('Department', 220, footerStartY);
+      doc.font('Helvetica').fontSize(8).text(dept, 220, doc.y + 3);
+      
+      doc.fontSize(9).font('Helvetica-Bold').text('Generated Date & Time', 400, footerStartY);
+      doc.font('Helvetica').fontSize(8).text(`${new Date(po.createdAt || po.orderDate).toLocaleDateString()} - ${new Date(po.createdAt || po.orderDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, 400, doc.y + 3);
+      
+      doc.moveDown(2);
+      doc.moveTo(40, doc.y).lineTo(570, doc.y).strokeColor('#e2e8f0').stroke();
+      doc.moveDown(0.5);
+      doc.fontSize(8).font('Helvetica-Bold').text('Document Verification', 40, doc.y);
+      doc.font('Helvetica').fontSize(7).text(`Generated by: Restaurant Inventory Management System | Order ID: ${po.orderNumber} | Status: Sent`, 40, doc.y + 2);
+
+      doc.end();
+    });
+
+    await sendPurchaseOrderEmailService(targetEmail, po.orderNumber, pdfBuffer);
+
+    // Update PO status to Sent
+    const updated = await prisma.purchaseOrder.update({
+      where: { id },
+      data: { 
+        status: 'Sent',
+        emailSentAt: new Date()
+      }
+    });
+
+    // Log Activity
+    await prisma.supplierActivity.create({
+      data: { activity: `Order Sent: ${po.orderNumber} emailed directly to ${po.supplier.name} (${targetEmail})` }
+    });
+
+    broadcast('STOCK_REQUEST_MUTATED', updated);
+
+    return res.status(200).json({ success: true, message: 'Purchase order emailed successfully' });
+  } catch (error: any) {
+    console.error('Error emailing purchase order:', error);
+    return res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+export const trackPurchaseOrderPrint = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  try {
+    const po = await prisma.purchaseOrder.findUnique({
+      where: { id },
+      include: { supplier: true }
+    });
+
+    if (!po) {
+      return res.status(404).json({ message: 'Purchase Order not found' });
+    }
+
+    const userName = req.user?.name || 'Admin';
+
+    const updatedPo = await prisma.purchaseOrder.update({
+      where: { id },
+      data: {
+        printedBy: userName,
+        printDate: new Date(),
+        numberOfPrints: {
+          increment: 1
+        }
+      },
+      include: {
+        supplier: true,
+        grns: true,
+        invoices: true,
+        poItems: {
+          include: { product: true }
+        }
+      }
+    });
+
+    await prisma.supplierActivity.create({
+      data: {
+        activity: `Order Printed: ${po.orderNumber} by ${userName}`
+      }
+    });
+
+    return res.status(200).json(updatedPo);
+  } catch (error: any) {
+    console.error('Error tracking purchase order print:', error);
+    return res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+export const getKitchenStockRequests = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const requests = await prisma.kitchenStockRequest.findMany({
+      include: {
+        purchaseOrder: {
+          include: {
+            supplier: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    return res.status(200).json(requests);
+  } catch (error: any) {
+    console.error('Error fetching kitchen stock requests:', error);
+    return res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+export const createKitchenStockRequest = async (req: AuthenticatedRequest, res: Response) => {
+  const { items } = req.body;
+  try {
+    const count = await prisma.kitchenStockRequest.count();
+    const year = new Date().getFullYear();
+    const requestNo = `KR-${year}-${String(count + 1).padStart(5, '0')}`;
+    const requestedBy = req.user?.name || 'Kitchen Staff';
+
+    const request = await prisma.kitchenStockRequest.create({
+      data: {
+        requestNo,
+        requestedBy,
+        items: items || [],
+        status: 'Pending Approval'
+      }
+    });
+
+    await prisma.supplierActivity.create({
+      data: { activity: `Stock Request Created: ${requestNo} by ${requestedBy}` }
+    });
+
+    broadcast('STOCK_REQUEST_MUTATED', request);
+
+    return res.status(201).json(request);
+  } catch (error: any) {
+    console.error('Error creating kitchen stock request:', error);
+    return res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+export const updateKitchenStockRequestStatus = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { status, purchaseOrderId } = req.body;
+  try {
+    const validStatuses = ['Pending', 'Approved', 'Rejected', 'Converted', 'Pending Approval'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const updated = await prisma.kitchenStockRequest.update({
+      where: { id },
+      data: { 
+        status,
+        purchaseOrderId: purchaseOrderId || undefined
+      },
+      include: {
+        purchaseOrder: {
+          include: {
+            supplier: true
+          }
+        }
+      }
+    });
+
+    const userName = req.user?.name || 'Admin';
+    await prisma.supplierActivity.create({
+      data: { activity: `Stock Request ${updated.requestNo} status updated to ${status} by ${userName}` }
+    });
+
+    broadcast('STOCK_REQUEST_MUTATED', updated);
+
+    return res.status(200).json(updated);
+  } catch (error: any) {
+    console.error('Error updating kitchen stock request status:', error);
     return res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 };

@@ -41,6 +41,8 @@ import { RecipeManagement } from './pages/RecipeManagement';
 import { OnlineOrders } from './pages/OnlineOrders';
 import { RestaurantReports } from './pages/RestaurantReports';
 import { RestaurantInventory } from './pages/RestaurantInventory';
+import { KitchenDashboard } from './pages/KitchenDashboard';
+import { InventoryRequests } from './pages/InventoryRequests';
 import { PublicQRMenu } from './pages/PublicQRMenu';
 import { WaiterDashboard } from './pages/WaiterDashboard';
 import { TakeOrder } from './pages/TakeOrder';
@@ -111,7 +113,8 @@ const DashboardLayout: React.FC = () => {
             <Route path="/restaurant/generate-bill" element={<GenerateBill />} />
             <Route path="/generate-bill" element={<GenerateBill />} />
             <Route path="/restaurant/tables" element={<TableManagement />} />
-            <Route path="/restaurant/kitchen" element={<KitchenDisplay />} />
+             <Route path="/restaurant/kitchen" element={<KitchenDisplay />} />
+            <Route path="/restaurant/kitchen-dashboard" element={<KitchenDashboard />} />
             <Route path="/restaurant/menu" element={<DigitalMenuBuilder />} />
             <Route path="/restaurant/waiters" element={<WaiterManagement />} />
             <Route path="/restaurant/reservations" element={<Reservations />} />
@@ -120,6 +123,8 @@ const DashboardLayout: React.FC = () => {
             <Route path="/restaurant/waiter-dashboard" element={<WaiterDashboard />} />
             <Route path="/restaurant/reports" element={<RestaurantReports />} />
             <Route path="/restaurant/inventory" element={<RestaurantInventory />} />
+            <Route path="/restaurant/inventory-requests" element={<InventoryRequests />} />
+            <Route path="/restaurant/stock-requests" element={<InventoryRequests />} />
             {/* Fallback to Dashboard */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

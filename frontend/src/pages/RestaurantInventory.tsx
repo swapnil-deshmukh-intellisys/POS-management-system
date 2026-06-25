@@ -76,8 +76,8 @@ export const RestaurantInventory: React.FC = () => {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
 
   // Sorting state
-  const [sortField, setSortField] = useState<string>('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [sortField, setSortField] = useState<string>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -134,6 +134,12 @@ export const RestaurantInventory: React.FC = () => {
     today.setHours(0, 0, 0, 0);
     const diffTime = targetDate.getTime() - today.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  const getSafeTime = (dateVal: any) => {
+    if (!dateVal) return 0;
+    const time = new Date(dateVal).getTime();
+    return isNaN(time) ? 0 : time;
   };
 
   // Fetch all initial data
@@ -476,6 +482,12 @@ ${poForm.notes}
 
   // Sort products
   const sortedProducts = [...filteredProducts].sort((a, b) => {
+    if (sortField === 'createdAt') {
+      const timeA = getSafeTime(a.createdAt);
+      const timeB = getSafeTime(b.createdAt);
+      return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+    }
+
     let valA = a[sortField];
     let valB = b[sortField];
 
@@ -485,10 +497,12 @@ ${poForm.notes}
       return sortOrder === 'asc' ? diffA - diffB : diffB - diffA;
     }
 
-    if (typeof valA === 'string') {
+    if (typeof valA === 'string' && typeof valB === 'string') {
       return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
     } else {
-      return sortOrder === 'asc' ? (valA || 0) - (valB || 0) : (valB || 0) - (valA || 0);
+      const numA = Number(valA) || 0;
+      const numB = Number(valB) || 0;
+      return sortOrder === 'asc' ? numA - numB : numB - numA;
     }
   });
 
@@ -499,12 +513,18 @@ ${poForm.notes}
   const totalPages = Math.ceil(sortedProducts.length / itemsPerPage);
 
   // Sections data lists
-  const lowStockItems = products.filter(p => p.currentStock > 0 && p.currentStock <= (p.minimumStock || 10));
-  const outOfStockItems = products.filter(p => p.currentStock <= 0);
-  const expiringItems = products.filter(p => {
-    const diff = getDaysDiff(p.expiryDate);
-    return diff >= 0 && diff <= 30;
-  });
+  const lowStockItems = [...products]
+    .filter(p => p.currentStock > 0 && p.currentStock <= (p.minimumStock || 10))
+    .sort((a, b) => getSafeTime(b.createdAt) - getSafeTime(a.createdAt));
+  const outOfStockItems = [...products]
+    .filter(p => p.currentStock <= 0)
+    .sort((a, b) => getSafeTime(b.createdAt) - getSafeTime(a.createdAt));
+  const expiringItems = [...products]
+    .filter(p => {
+      const diff = getDaysDiff(p.expiryDate);
+      return diff >= 0 && diff <= 30;
+    })
+    .sort((a, b) => getSafeTime(b.createdAt) - getSafeTime(a.createdAt));
 
   // Mock Activity Feed if DB log is empty
   const mockActivities = [
@@ -583,7 +603,7 @@ ${poForm.notes}
               }
               handleScrollToSection(card.target);
             }}
-            className="p-5 bg-white rounded-2xl border border-slate-100 text-left transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 flex flex-col justify-between h-32 cursor-pointer w-full"
+            className={`p-5 bg-white rounded-2xl border ${card.border} text-left transition-all duration-300 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_20px_-6px_rgba(0,0,0,0.1)] hover:-translate-y-1 flex flex-col justify-between h-32 cursor-pointer w-full`}
           >
             <div className="flex justify-between items-start w-full">
               <span className="text-xs md:text-sm font-semibold text-black">{card.label}</span>
@@ -797,14 +817,14 @@ ${poForm.notes}
                               onClick={() => handleOpenPO(p)}
                               className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold uppercase tracking-wider transition cursor-pointer"
                             >
-                              Reorder
+                              Order Supplier
                             </button>
                           ) : qty <= minAlert ? (
                             <button
                               onClick={() => handleOpenPO(p)}
                               className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold uppercase tracking-wider transition cursor-pointer"
                             >
-                              Order
+                              Order Supplier
                             </button>
                           ) : p.expiryDate && new Date(p.expiryDate) < new Date() ? (
                             <div className="flex gap-1">
@@ -884,7 +904,7 @@ ${poForm.notes}
           </h3>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[480px] overflow-y-auto pr-1">
           <table className="w-full text-xs md:text-sm text-left border-collapse table-layout-fixed">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 font-bold text-black text-xs md:text-sm uppercase tracking-wide">
@@ -910,7 +930,7 @@ ${poForm.notes}
                         onClick={() => handleOpenPO(p)}
                         className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold uppercase transition cursor-pointer"
                       >
-                        Reorder
+                        Order Supplier
                       </button>
                     </td>
                   </tr>
@@ -935,7 +955,7 @@ ${poForm.notes}
           </h3>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[480px] overflow-y-auto pr-1">
           <table className="w-full text-xs md:text-sm text-left border-collapse table-layout-fixed">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 font-bold text-black text-xs md:text-sm uppercase tracking-wide">
@@ -961,7 +981,7 @@ ${poForm.notes}
                         onClick={() => handleOpenPO(p)}
                         className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold uppercase transition cursor-pointer"
                       >
-                        Reorder
+                        Order Supplier
                       </button>
                     </td>
                   </tr>
@@ -978,31 +998,33 @@ ${poForm.notes}
         className={`bg-white rounded-3xl border p-4 shadow-sm transition-all duration-500 ${highlightExpiry ? 'border-yellow-500 ring-4 ring-yellow-100 scale-[1.002]' : 'border-slate-100'}`}
       >
         <h3 className="text-sm md:text-base font-bold text-black uppercase tracking-wider mb-3 border-b pb-2">Expiry Tracking</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {expiringItems.length === 0 ? (
-            <p className="text-xs text-slate-400 italic col-span-2">No products expiring in the next 30 days.</p>
-          ) : (
-            expiringItems.map(p => {
-              const diff = getDaysDiff(p.expiryDate);
-              const daysText = diff < 0 ? 'Expired' : `${diff} days remaining`;
+        <div className="max-h-[480px] overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {expiringItems.length === 0 ? (
+              <p className="text-xs text-slate-400 italic col-span-2">No products expiring in the next 30 days.</p>
+            ) : (
+              expiringItems.map(p => {
+                const diff = getDaysDiff(p.expiryDate);
+                const daysText = diff < 0 ? 'Expired' : `${diff} days remaining`;
 
-              return (
-                <div key={p.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
-                  <div>
-                    <strong className="text-xs md:text-sm font-semibold text-black block">{p.name}</strong>
-                    <span className="text-[11px] md:text-xs text-slate-500 font-semibold block mt-0.5">
-                      Expiry Date: <span className="font-bold text-black">{p.expiryDate ? p.expiryDate.split('T')[0] : 'N/A'}</span>
-                    </span>
+                return (
+                  <div key={p.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                    <div>
+                      <strong className="text-xs md:text-sm font-semibold text-black block">{p.name}</strong>
+                      <span className="text-[11px] md:text-xs text-slate-500 font-semibold block mt-0.5">
+                        Expiry Date: <span className="font-bold text-black">{p.expiryDate ? p.expiryDate.split('T')[0] : 'N/A'}</span>
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-[11px] md:text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded ${diff < 0 ? 'bg-red-50 text-red-700' : diff <= 7 ? 'bg-rose-50 text-rose-700' : 'bg-yellow-50 text-yellow-800'}`}>
+                        {daysText}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`text-[11px] md:text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded ${diff < 0 ? 'bg-red-50 text-red-700' : diff <= 7 ? 'bg-rose-50 text-rose-700' : 'bg-yellow-50 text-yellow-800'}`}>
-                      {daysText}
-                    </span>
-                  </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 
@@ -1015,8 +1037,11 @@ ${poForm.notes}
             <Activity className="w-4 h-4 text-emerald-600" />
             <h3 className="text-sm md:text-base font-bold text-black uppercase tracking-wider">Inventory Activity</h3>
           </div>
-          <div className="space-y-3">
-            {(activities.length > 0 ? activities.slice(0, 5) : mockActivities).map((act: any, idx: number) => (
+          <div className="max-h-[480px] overflow-y-auto pr-1 space-y-3">
+            {(activities.length > 0 
+              ? [...activities].sort((a, b) => getSafeTime(b.createdAt) - getSafeTime(a.createdAt)) 
+              : mockActivities
+            ).map((act: any, idx: number) => (
               <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
                 <div>
                   <strong className="text-black font-normal block">{act.item?.name || act.productName}</strong>
@@ -1036,8 +1061,11 @@ ${poForm.notes}
             <Truck className="w-4 h-4 text-emerald-600" />
             <h3 className="text-sm md:text-base font-bold text-black uppercase tracking-wider">Suppliers</h3>
           </div>
-          <div className="space-y-3">
-            {(suppliers.length > 0 ? suppliers.slice(0, 4) : supplierOverviewList).map((sup: any, idx: number) => (
+          <div className="max-h-[480px] overflow-y-auto pr-1 space-y-3">
+            {(suppliers.length > 0 
+              ? [...suppliers].sort((a, b) => getSafeTime(b.createdAt) - getSafeTime(a.createdAt)) 
+              : [...supplierOverviewList].sort((a, b) => getSafeTime(b.date) - getSafeTime(a.date))
+            ).map((sup: any, idx: number) => (
               <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
                 <div>
                   <strong className="text-black font-semibold block">{sup.name}</strong>
@@ -1067,7 +1095,7 @@ ${poForm.notes}
               <X className="w-5 h-5 text-black" />
             </button>
 
-            <h3 className="font-normal text-black text-lg uppercase tracking-wider mb-4 border-b pb-2">
+            <h3 className="font-semibold text-black text-xl mb-4 border-b pb-2">
               {editingProduct ? 'Edit Product' : 'Add Product'}
             </h3>
 
@@ -1086,7 +1114,7 @@ ${poForm.notes}
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-normal text-black uppercase tracking-widest block mb-1">Quantity *</label>
                     <input
@@ -1113,33 +1141,6 @@ ${poForm.notes}
                       <option value="Piece">Piece</option>
                       <option value="Packet">Packet</option>
                     </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-normal text-black uppercase tracking-widest block mb-1">Minimum Stock Level *</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      placeholder="e.g. 20"
-                      value={prodForm.minimumStock}
-                      onChange={(e) => setProdForm({ ...prodForm, minimumStock: String(Math.max(0, parseFloat(e.target.value) || 0)) })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-black focus:outline-none focus:border-emerald-600"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label className="text-[10px] font-normal text-black uppercase tracking-widest block mb-1">Purchase Price *</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      placeholder="e.g. 25"
-                      value={prodForm.purchasePrice}
-                      onChange={(e) => setProdForm({ ...prodForm, purchasePrice: String(Math.max(0, parseFloat(e.target.value) || 0)) })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-black focus:outline-none focus:border-emerald-600"
-                    />
                   </div>
                 </div>
 

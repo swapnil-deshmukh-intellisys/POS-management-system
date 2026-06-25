@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   Play,
@@ -8,18 +9,65 @@ import {
   Server
 } from 'lucide-react';
 
+// Define Interfaces
+interface RequestItem {
+  productName: string;
+  quantity: number | string;
+  unit: string;
+  notes?: string;
+}
+
+interface Supplier {
+  id: string;
+  name: string;
+  companyName?: string;
+  contactPerson?: string;
+  mobile: string;
+  whatsapp?: string;
+  email?: string;
+  rating?: number;
+}
+
+interface PurchaseOrder {
+  id: string;
+  orderNumber: string;
+  status: 'Draft' | 'Pending' | 'Sent' | 'Confirmed' | 'Delivered' | 'Received';
+  expectedDeliveryDate: string;
+  totalAmount: number;
+  paymentStatus: string;
+  whatsappSentAt?: string;
+  emailSentAt?: string;
+  createdAt: string;
+  items?: any;
+  supplier?: Supplier;
+}
+
+interface StockRequest {
+  id: string;
+  requestNo: string;
+  requestedBy: string;
+  status: 'Pending' | 'Pending Approval' | 'Approved' | 'Rejected' | 'Converted';
+  createdAt: string;
+  items: RequestItem[];
+  approvedAt?: string;
+  convertedAt?: string;
+  purchaseOrderId?: string;
+  purchaseOrder?: PurchaseOrder;
+}
+
 export const KitchenDisplay: React.FC = () => {
   const { apiRequest } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [newOrderAnimationIds, setNewOrderAnimationIds] = useState<string[]>([]);
   const [nowTime, setNowTime] = useState(Date.now());
-  // Removed expandedOrderIds state to resolve unused warning
   const [activeTab, setActiveTab] = useState<'NEW' | 'PREPARING' | 'READY'>('NEW');
   const [activeReadyAlert, setActiveReadyAlert] = useState<{ table: string; orderId: string } | null>(null);
   const [delayedUploadedIds, setDelayedUploadedIds] = useState<string[]>([]);
   const [lastNewCount, setLastNewCount] = useState(0);
   const [toasts, setToasts] = useState<{ id: string; title: string; message: string; type: 'info' | 'success' }[]>([]);
+  const [stockRequests, setStockRequests] = useState<any[]>([]);
 
   const showToast = (title: string, message: string, type: 'info' | 'success' = 'info', duration = 6000) => {
     const id = Date.now().toString() + Math.random().toString();
@@ -33,6 +81,7 @@ export const KitchenDisplay: React.FC = () => {
   const newCount = orders.filter(o => o.status === 'NEW').length;
   const preparingCount = orders.filter(o => o.status === 'ACCEPTED' || o.status === 'PREPARING').length;
   const readyCount = orders.filter(o => o.status === 'READY').length;
+  const pendingStockRequestsCount = stockRequests.filter(r => r.status === 'Pending' || r.status === 'Pending Approval').length;
 
   // Realtime connection URL
   const API_BASE = window.location.hostname === 'localhost'
@@ -111,7 +160,6 @@ export const KitchenDisplay: React.FC = () => {
     }
 
     const mockActive = [
-      // NEW ORDERS (T1 to T6)
       {
         id: 'ko-101',
         source: 'QR',
@@ -186,8 +234,6 @@ export const KitchenDisplay: React.FC = () => {
           { id: 'koi-14', quantity: 2, menuItem: { name: 'Sprite', price: 40 } }
         ]
       },
-
-      // PREPARING ORDERS (T7 to T13)
       {
         id: 'ko-107',
         source: 'QR',
@@ -282,8 +328,6 @@ export const KitchenDisplay: React.FC = () => {
           { id: 'koi-31', quantity: 2, menuItem: { name: 'Butter Naan', price: 40 } }
         ]
       },
-
-      // READY ORDERS (T14 to T20)
       {
         id: 'ko-114',
         source: 'QR',
@@ -376,6 +420,102 @@ export const KitchenDisplay: React.FC = () => {
     setLoading(false);
   };
 
+  // Generate 25 realistic dummy requests
+  const generateDummyRequests = (): StockRequest[] => {
+    const itemsPool = [
+      { name: 'Tomato', unit: 'Kg' },
+      { name: 'Onion', unit: 'Kg' },
+      { name: 'Cheese', unit: 'Kg' },
+      { name: 'Paneer', unit: 'Kg' },
+      { name: 'Oil', unit: 'Liter' },
+      { name: 'Milk', unit: 'Liter' },
+      { name: 'Butter', unit: 'Kg' },
+      { name: 'Rice', unit: 'Kg' },
+      { name: 'Garlic', unit: 'Kg' },
+      { name: 'Ginger', unit: 'Kg' },
+      { name: 'Capsicum', unit: 'Kg' },
+      { name: 'Salt', unit: 'Kg' }
+    ];
+
+    const roles = ['Kitchen Manager', 'Chef Adesh', 'Kitchen Staff', 'Sous Chef Rohan'];
+    const statuses: ('Pending Approval' | 'Approved' | 'Converted')[] = ['Pending Approval', 'Approved', 'Converted'];
+    const baseRequests: StockRequest[] = [];
+
+    const now = new Date();
+
+    for (let i = 1; i <= 25; i++) {
+      const status = statuses[i % 3];
+      const dateOffsetDays = i;
+      const createdAt = new Date(now.getTime() - dateOffsetDays * 6 * 3600 * 1000);
+      
+      const itemsCount = 1 + (i % 4);
+      const itemsList: RequestItem[] = [];
+      for (let j = 0; j < itemsCount; j++) {
+        const itemObj = itemsPool[(i + j) % itemsPool.length];
+        const qty = 5 + ((i * j * 3) % 45);
+        itemsList.push({
+          productName: itemObj.name,
+          quantity: qty,
+          unit: itemObj.unit,
+          notes: j === 0 ? 'Urgent reorder for weekend rush.' : ''
+        });
+      }
+
+      baseRequests.push({
+        id: `dummy-req-${i}`,
+        requestNo: `KR-2026-${String(100 + i).padStart(3, '0')}`,
+        requestedBy: roles[i % roles.length],
+        status,
+        createdAt: createdAt.toISOString(),
+        items: itemsList,
+        approvedAt: status !== 'Pending Approval' ? new Date(createdAt.getTime() + 45 * 60 * 1000).toISOString() : undefined,
+        convertedAt: status === 'Converted' ? new Date(createdAt.getTime() + 2 * 3600 * 1000).toISOString() : undefined,
+        purchaseOrder: status === 'Converted' ? {
+          id: `dummy-po-${i}`,
+          orderNumber: `PO-2026-${String(200 + i).padStart(3, '0')}`,
+          status: i % 2 === 0 ? 'Sent' : 'Delivered',
+          expectedDeliveryDate: new Date(createdAt.getTime() + 4 * 24 * 3600 * 1000).toISOString(),
+          totalAmount: 1500 + (i * 250),
+          paymentStatus: i % 2 === 0 ? 'Pending' : 'Paid',
+          whatsappSentAt: new Date(createdAt.getTime() + 3 * 3600 * 1000).toISOString(),
+          emailSentAt: new Date(createdAt.getTime() + 3.5 * 3600 * 1000).toISOString(),
+          createdAt: new Date(createdAt.getTime() + 2 * 3600 * 1000).toISOString(),
+          items: itemsList.map(it => ({ ...it, purchasePrice: 120 })),
+          supplier: {
+            id: `dummy-sup-${i}`,
+            name: i % 2 === 0 ? 'ABC Traders' : 'XYZ Foods',
+            contactPerson: i % 2 === 0 ? 'Amit Patel' : 'Rahul Sharma',
+            mobile: i % 2 === 0 ? '9123456789' : '9876543210',
+            email: i % 2 === 0 ? 'orders@abctraders.com' : 'sales@xyzfoods.com',
+            rating: i % 2 === 0 ? 4.8 : 4.2
+          }
+        } : undefined
+      });
+    }
+
+    return baseRequests;
+  };
+
+  // Fetch Stock Requests list
+  const fetchStockRequests = async () => {
+    try {
+      const res = await apiRequest('/suppliers/kitchen-requests');
+      const dbRequests = Array.isArray(res) ? res : [];
+      const dbRequestNos = new Set(dbRequests.map(r => r.requestNo));
+      const dummyRequests = generateDummyRequests().filter(r => !dbRequestNos.has(r.requestNo));
+      
+      const finalRequests = [...dbRequests, ...dummyRequests];
+      finalRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      setStockRequests(finalRequests);
+    } catch (e) {
+      console.warn('Failed to fetch stock requests list.');
+      const dummyRequests = generateDummyRequests();
+      dummyRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setStockRequests(dummyRequests);
+    }
+  };
+
   const handleUpdateStatus = async (orderId: string, nextStatus: string, estTime?: number) => {
     try {
       await apiRequest(`/restaurant/orders/${orderId}/status`, {
@@ -426,6 +566,7 @@ export const KitchenDisplay: React.FC = () => {
   // SSE Realtime Updates Handler
   useEffect(() => {
     fetchOrders();
+    fetchStockRequests();
 
     const sseUrl = `${API_BASE}/restaurant/realtime`;
     console.log('[KDS SSE] Connecting to', sseUrl);
@@ -436,6 +577,7 @@ export const KitchenDisplay: React.FC = () => {
         const payload = JSON.parse(event.data);
         console.log('[KDS SSE] Event received:', payload);
         fetchOrders();
+        fetchStockRequests();
 
         if (payload.type === 'NEW_ORDER') {
           const newOrder = payload.data;
@@ -467,6 +609,17 @@ export const KitchenDisplay: React.FC = () => {
     return () => {
       eventSource.close();
       clearInterval(intervalId);
+    };
+  }, []);
+
+  // Listen to mutation event
+  useEffect(() => {
+    const handleMutation = () => {
+      fetchStockRequests();
+    };
+    window.addEventListener('stock-request-mutated', handleMutation);
+    return () => {
+      window.removeEventListener('stock-request-mutated', handleMutation);
     };
   }, []);
 
@@ -510,7 +663,6 @@ export const KitchenDisplay: React.FC = () => {
     });
   }, [nowTime, orders, delayedUploadedIds]);
 
-
   // Cooking time format MM:SS
   const getCookingDurationString = (order: any) => {
     if (order.status !== 'PREPARING' && order.status !== 'ACCEPTED') return '--:--';
@@ -529,8 +681,6 @@ export const KitchenDisplay: React.FC = () => {
     const expectedMins = getOrderPrepTime(order);
     return diffMs > expectedMins * 60 * 1000;
   };
-
-  // Removed unused toggleExpand function
 
   // Contextual live timer labels
   const getTimingLabel = (order: any) => {
@@ -605,9 +755,9 @@ export const KitchenDisplay: React.FC = () => {
               e.stopPropagation();
               handleUpdateStatus(order.id, 'PREPARING');
             }}
-            className="bg-orange-500 hover:bg-orange-600 text-white font-black py-2 px-3 rounded-lg text-xs tracking-wider transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-1 w-full"
+            className="bg-orange-500 hover:bg-orange-600 text-white font-bold h-[36px] px-4 rounded-xl text-[14px] tracking-wider transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-1.5 w-full cursor-pointer"
           >
-            <Play className="w-3.5 h-3.5" />
+            <Play className="w-4 h-4" />
             <span>START COOKING</span>
           </button>
         );
@@ -619,9 +769,9 @@ export const KitchenDisplay: React.FC = () => {
               e.stopPropagation();
               handleUpdateStatus(order.id, 'READY');
             }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2 px-3 rounded-lg text-xs tracking-wider transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-1 w-full"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-[36px] px-4 rounded-xl text-[14px] tracking-wider transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-1.5 w-full cursor-pointer"
           >
-            <Check className="w-3.5 h-3.5" />
+            <Check className="w-4 h-4" />
             <span>READY</span>
           </button>
         );
@@ -649,8 +799,12 @@ export const KitchenDisplay: React.FC = () => {
 
   const displayedOrders = filterOrdersByTab();
 
+  const handleScrollToStockRequests = () => {
+    navigate('/restaurant/inventory-requests');
+  };
+
   return (
-    <div className="space-y-4 text-slate-900 dark:text-slate-100 relative" style={{ fontFamily: "'Trebuchet MS', 'Inter', sans-serif" }}>
+    <div className="space-y-6 text-slate-900 dark:text-slate-100 relative max-w-7xl mx-auto p-4 select-none" style={{ fontFamily: "'Trebuchet MS', 'Inter', sans-serif" }}>
       {stylesInject}
 
       {/* Toast Notifications Container */}
@@ -689,7 +843,7 @@ export const KitchenDisplay: React.FC = () => {
         </div>
       )}
 
-      {/* Header bar */}
+      {/* SECTION 1: Kitchen Dashboard Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900 text-white p-4 rounded-xl shadow-md">
         <div className="flex items-center gap-3">
           <Server className="w-5 h-5 text-emerald-400" />
@@ -697,20 +851,10 @@ export const KitchenDisplay: React.FC = () => {
           <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>
         </div>
 
-        {/* KPI Insight Chips Bar */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="bg-slate-800 border border-slate-700/60 px-3 py-1 rounded-full text-xs font-bold text-blue-400">
-            New: {newCount}
-          </span>
-          <span className="bg-slate-800 border border-slate-700/60 px-3 py-1 rounded-full text-xs font-bold text-amber-400">
-            Preparing: {preparingCount}
-          </span>
-          <span className="bg-slate-800 border border-slate-700/60 px-3 py-1 rounded-full text-xs font-bold text-emerald-400">
-            Ready: {readyCount}
-          </span>
           <button
             onClick={playAlertSound}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5 cursor-pointer"
           >
             <Bell className="w-3.5 h-3.5" />
             <span>BELL TEST</span>
@@ -724,148 +868,166 @@ export const KitchenDisplay: React.FC = () => {
         </div>
       </div>
 
-      {/* Tab Selectors - Black Bold Titles */}
-      <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+      {/* SECTION 2: KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
         {[
-          { tabId: 'NEW', label: 'NEW', count: newCount },
-          { tabId: 'PREPARING', label: 'PREPARING', count: preparingCount },
-          { tabId: 'READY', label: 'READY', count: readyCount }
-        ].map(t => (
+          { label: 'Active Orders', count: newCount, color: 'border-t-blue-500', action: () => setActiveTab('NEW') },
+          { label: 'Preparing Orders', count: preparingCount, color: 'border-t-amber-500', action: () => setActiveTab('PREPARING') },
+          { label: 'Ready Orders', count: readyCount, color: 'border-t-emerald-500', action: () => setActiveTab('READY') },
+          { label: 'Stock Requests', count: pendingStockRequestsCount, color: 'border-t-purple-500', action: handleScrollToStockRequests }
+        ].map((card, idx) => (
           <button
-            key={t.tabId}
-            onClick={() => setActiveTab(t.tabId as any)}
-            className={`flex-1 flex items-center justify-center gap-2.5 py-3 rounded-lg text-base tracking-wider transition-all ${activeTab === t.tabId
-              ? 'bg-white dark:bg-slate-700 shadow-sm text-black dark:text-white font-extrabold border-b-2 border-black dark:border-white'
-              : 'text-slate-500 hover:text-slate-850 dark:hover:text-slate-300 font-bold'
-              }`}
+            key={idx}
+            onClick={card.action}
+            className={`p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 border-t-[3px] ${card.color} text-left transition-all duration-300 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_25px_-6px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 cursor-pointer w-full h-28 flex flex-col justify-between`}
           >
-            <span className="text-black dark:text-white">{t.label}</span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-slate-200 dark:bg-slate-800 text-black dark:text-white">
-              {t.count}
-            </span>
+            <span className="text-[14px] font-semibold text-slate-500 uppercase tracking-wider">{card.label}</span>
+            <span className="text-3xl font-normal text-black dark:text-white block leading-none">{card.count}</span>
           </button>
         ))}
       </div>
 
-      {/* Kitchen Order Board */}
-      <div className="bg-white dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-sm overflow-hidden">
-        {/* Table Header: Perfect Column Alignment, Bold Black Headers, Emojis removed */}
-        <div className="grid grid-cols-[140px_130px_2.5fr_1.5fr_140px_160px] gap-4 bg-slate-100 dark:bg-slate-800/50 p-4 border-b border-slate-200 dark:border-slate-700 text-xs font-extrabold uppercase text-slate-955 dark:text-white tracking-wider">
-          <div>TABLE NUMBER</div>
-          <div>ORDER NUMBER</div>
-          <div>ORDERED ITEMS</div>
-          <div>PREPARATION TIME</div>
-          <div>STATUS</div>
-          <div className="text-right font-extrabold">ACTION</div>
+      {/* SECTION 3: Kitchen Orders Area */}
+      <div className="space-y-4">
+        <h2 className="text-[18px] font-medium text-black dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Kitchen Orders</h2>
+        
+        {/* Tab Selectors - Black Bold Titles */}
+        <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+          {[
+            { tabId: 'NEW', label: 'NEW', count: newCount },
+            { tabId: 'PREPARING', label: 'PREPARING', count: preparingCount },
+            { tabId: 'READY', label: 'READY', count: readyCount }
+          ].map(t => (
+            <button
+              key={t.tabId}
+              onClick={() => setActiveTab(t.tabId as any)}
+              className={`flex-1 flex items-center justify-center gap-2.5 py-3 rounded-lg text-base tracking-wider transition-all cursor-pointer ${activeTab === t.tabId
+                ? 'bg-white dark:bg-slate-700 shadow-sm text-black dark:text-white font-extrabold border-b-2 border-black dark:border-white'
+                : 'text-slate-500 hover:text-slate-850 dark:hover:text-slate-300 font-bold'
+                }`}
+            >
+              <span className="text-black dark:text-white">{t.label}</span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-black bg-slate-200 dark:bg-slate-800 text-black dark:text-white">
+                {t.count}
+              </span>
+            </button>
+          ))}
         </div>
 
-        {/* Rows */}
-        {loading ? (
-          <div className="flex items-center justify-center min-h-[40vh] p-8">
-            <Loader2 className="w-8 h-8 animate-spin text-slate-850 dark:text-white" />
+        {/* Kitchen Order Board */}
+        <div className="bg-white dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-sm overflow-hidden">
+          <div className="grid grid-cols-[140px_130px_2.5fr_1.5fr_140px_160px] gap-4 bg-slate-100 dark:bg-slate-800/50 p-4 border-b border-slate-200 dark:border-slate-700 text-xs font-extrabold uppercase text-slate-955 dark:text-white tracking-wider">
+            <div>TABLE NUMBER</div>
+            <div>ORDER NUMBER</div>
+            <div>ORDERED ITEMS</div>
+            <div>PREPARATION TIME</div>
+            <div>STATUS</div>
+            <div className="text-right font-extrabold">ACTION</div>
           </div>
-        ) : displayedOrders.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 dark:text-slate-500 font-bold">
-            No orders currently in this section
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100 dark:divide-slate-750">
-            {displayedOrders.map(order => {
-              const isDelayed = isOrderDelayed(order);
-              const isNew = newOrderAnimationIds.includes(order.id);
-              const prepTimeVal = getOrderPrepTime(order);
-              const isCooking = order.status === 'ACCEPTED' || order.status === 'PREPARING';
 
-              return (
-                <div
-                  key={order.id}
-                  className={`transition-all border-b border-slate-100 dark:border-slate-750 ${isNew ? 'flash-row bg-blue-50/10 dark:bg-blue-900/5' : ''
-                    } ${isDelayed ? 'delayed-border bg-red-50/5 dark:bg-red-950/5' : ''} ${order.status === 'READY' ? 'ready-glow bg-emerald-50/5 dark:bg-emerald-950/5' : ''
-                    } hover:bg-slate-50/50 dark:hover:bg-slate-800/30`}
-                >
-                  {/* Compact Main Row: Fixed Width Column Grid, Regular Data Weight */}
-                  <div className="grid grid-cols-[140px_130px_2.5fr_1.5fr_140px_160px] gap-4 p-4 items-center text-slate-900 dark:text-slate-100 font-normal">
-                    {/* TABLE NUMBER - Bold, Black color, uppercase */}
-                    <div className="text-base text-black font-extrabold">
-                      <div className="text-black uppercase">
-                        TABLE T{order.table?.tableNumber ? order.table.tableNumber.replace(/\D/g, '') : 'Takeaway'}
+          {/* Rows */}
+          {loading ? (
+            <div className="flex items-center justify-center min-h-[40vh] p-8">
+              <Loader2 className="w-8 h-8 animate-spin text-slate-855 dark:text-white" />
+            </div>
+          ) : displayedOrders.length === 0 ? (
+            <div className="p-12 text-center text-slate-400 dark:text-slate-500 font-bold">
+              No orders currently in this section
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 dark:divide-slate-750 text-left">
+              {displayedOrders.map(order => {
+                const isDelayed = isOrderDelayed(order);
+                const isNew = newOrderAnimationIds.includes(order.id);
+                const prepTimeVal = getOrderPrepTime(order);
+                const isCooking = order.status === 'ACCEPTED' || order.status === 'PREPARING';
+
+                return (
+                  <div
+                    key={order.id}
+                    className={`transition-all border-b border-slate-100 dark:border-slate-750 ${isNew ? 'flash-row bg-blue-50/10 dark:bg-blue-900/5' : ''
+                      } ${isDelayed ? 'delayed-border bg-red-50/5 dark:bg-red-950/5' : ''} ${order.status === 'READY' ? 'ready-glow bg-emerald-50/5 dark:bg-emerald-950/5' : ''
+                      } hover:bg-slate-50/50 dark:hover:bg-slate-800/30`}
+                  >
+                    {/* Compact Main Row */}
+                    <div className="grid grid-cols-[140px_130px_2.5fr_1.5fr_140px_160px] gap-4 p-4 items-center text-slate-900 dark:text-slate-100 font-normal">
+                      
+                      <div className="text-base text-black font-extrabold">
+                        <div className="text-black uppercase">
+                          TABLE T{order.table?.tableNumber ? order.table.tableNumber.replace(/\D/g, '') : 'Takeaway'}
+                        </div>
+                        <div className="text-xs text-black font-bold mt-1 uppercase">
+                          WAITER: {order.waiter?.name ? order.waiter.name.toUpperCase() : 'UNASSIGNED'}
+                        </div>
                       </div>
-                      <div className="text-xs text-black font-bold mt-1 uppercase">
-                        WAITER: {order.waiter?.name ? order.waiter.name.toUpperCase() : 'UNASSIGNED'}
+
+                      <div className="text-[16px] text-black font-mono font-bold">
+                        #{order.id.slice(-4).toUpperCase()}
                       </div>
-                    </div>
 
-                    {/* ORDER NUMBER - Regular weight, Black color */}
-                    <div className="text-sm text-black font-mono font-bold">
-                      #{order.id.slice(-4).toUpperCase()}
-                    </div>
-
-                    {/* ORDERED ITEMS - Items directly shown with proper format: Dish Name ×Qty */}
-                    <div className="text-sm text-black space-y-1.5 font-bold">
-                      {order.items.map((it: any, index: number) => {
-                        const match = it.notes?.match(/^\[(KOT-\d+)\]/);
-                        const kotBadge = match ? match[1] : null;
-                        const cleanNotes = match ? it.notes.replace(/^\[KOT-\d+\]\s*/, '') : it.notes;
-                        return (
-                          <div key={it.id || index} className="text-black font-extrabold text-sm flex flex-col">
-                            <div className="flex items-center gap-2">
-                              {kotBadge && (
-                                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
-                                  {kotBadge}
+                      <div className="text-[14px] text-black space-y-1.5 font-semibold">
+                        {order.items.map((it: any, index: number) => {
+                          const match = it.notes?.match(/^\[(KOT-\d+)\]/);
+                          const kotBadge = match ? match[1] : null;
+                          const cleanNotes = match ? it.notes.replace(/^\[KOT-\d+\]\s*/, '') : it.notes;
+                          return (
+                            <div key={it.id || index} className="text-black font-extrabold text-[14px] flex flex-col">
+                              <div className="flex items-center gap-2">
+                                {kotBadge && (
+                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                    {kotBadge}
+                                  </span>
+                                )}
+                                <span>{it.menuItem?.name || 'Dish'} Qty {it.quantity}</span>
+                              </div>
+                              {cleanNotes && (
+                                <span className="text-xs text-amber-605 font-bold italic ml-2 block">
+                                  ↳ Notes: "{cleanNotes}"
                                 </span>
                               )}
-                              <span>{it.menuItem?.name || 'Dish'} Qty {it.quantity}</span>
                             </div>
-                            {cleanNotes && (
-                              <span className="text-xs text-amber-605 font-bold italic ml-2 block">
-                                ↳ Notes: "{cleanNotes}"
-                              </span>
-                            )}
+                          );
+                        })}
+                        {order.notes && (
+                          <div className="bg-amber-50/40 dark:bg-amber-950/15 border border-amber-100/35 dark:border-amber-900/20 p-2 rounded-lg mt-1 text-xs">
+                            <span className="font-extrabold text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400 block">
+                              Special Instructions:
+                            </span>
+                            <p className="font-semibold text-amber-855 dark:text-amber-300">
+                              "{order.notes}"
+                            </p>
                           </div>
-                        );
-                      })}
-                      {order.notes && (
-                        <div className="bg-amber-50/40 dark:bg-amber-950/15 border border-amber-100/35 dark:border-amber-900/20 p-2 rounded-lg mt-1 text-xs">
-                          <span className="font-extrabold text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400 block">
-                            Special Instructions:
-                          </span>
-                          <p className="font-semibold text-amber-855 dark:text-amber-300">
-                            "{order.notes}"
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
 
-                    {/* PREPARATION TIME / TIMER STATUS */}
-                    <div className="text-xs text-slate-900 dark:text-slate-350 space-y-0.5">
-                      <div>{getTimingLabel(order)}</div>
-                      {isCooking && (
-                        <div className="font-mono text-xs text-amber-600 dark:text-amber-400 font-bold">
-                          Cooking: {getCookingDurationString(order)}
-                        </div>
-                      )}
-                      {order.status !== 'READY' && (
-                        <div className={isDelayed ? 'text-red-650 dark:text-red-400 font-bold animate-pulse' : 'text-slate-400'}>
-                          Expected: {prepTimeVal} Min
-                        </div>
-                      )}
-                    </div>
+                      <div className="text-xs text-slate-900 dark:text-slate-350 space-y-0.5">
+                        <div>{getTimingLabel(order)}</div>
+                        {isCooking && (
+                          <div className="font-mono text-xs text-amber-600 dark:text-amber-400 font-bold">
+                            Cooking: {getCookingDurationString(order)}
+                          </div>
+                        )}
+                        {order.status !== 'READY' && (
+                          <div className={isDelayed ? 'text-red-650 dark:text-red-400 font-bold animate-pulse' : 'text-slate-400'}>
+                            Expected: {prepTimeVal} Min
+                          </div>
+                        )}
+                      </div>
 
-                    {/* STATUS */}
-                    <div>
-                      {getStatusIndicator(order)}
-                    </div>
+                      <div>
+                        {getStatusIndicator(order)}
+                      </div>
 
-                    {/* ACTION */}
-                    <div className="text-right flex items-center justify-end">
-                      {renderActionButtons(order)}
+                      <div className="text-right flex items-center justify-end">
+                        {renderActionButtons(order)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -913,6 +1075,23 @@ const stylesInject = (
     }
     .animate-banner-slide-persistent {
       animation: slide-banner-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes slide-in-right {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(0); }
+    }
+    .animate-slide-in {
+      animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 5px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
     }
   `}} />
 );

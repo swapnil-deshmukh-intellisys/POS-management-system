@@ -39,11 +39,22 @@ export const updateSettings = async (req: AuthenticatedRequest, res: Response) =
     whatsappApiProvider,
     whatsappApiKey,
     whatsappTemplateId,
-    whatsappAutoMsgEnabled
+    whatsappAutoMsgEnabled,
+    website,
+    digitalSignature,
+    officialStamp,
+    businessEmail,
+    smtpHost,
+    smtpPort,
+    smtpUsername,
+    smtpPassword,
+    ownerName,
+    autoOpenPrintPreview
   } = req.body;
   try {
     const existing = await prisma.shopSettings.findFirst();
     let settings;
+    const parsedSmtpPort = smtpPort ? parseInt(String(smtpPort)) : null;
     if (existing) {
       settings = await prisma.shopSettings.update({
         where: { id: existing.id },
@@ -59,7 +70,17 @@ export const updateSettings = async (req: AuthenticatedRequest, res: Response) =
           whatsappApiProvider,
           whatsappApiKey,
           whatsappTemplateId,
-          whatsappAutoMsgEnabled: whatsappAutoMsgEnabled !== undefined ? Boolean(whatsappAutoMsgEnabled) : undefined
+          whatsappAutoMsgEnabled: whatsappAutoMsgEnabled !== undefined ? Boolean(whatsappAutoMsgEnabled) : undefined,
+          website,
+          digitalSignature,
+          officialStamp,
+          businessEmail,
+          smtpHost,
+          smtpPort: parsedSmtpPort,
+          smtpUsername,
+          smtpPassword,
+          ownerName,
+          autoOpenPrintPreview: autoOpenPrintPreview !== undefined ? Boolean(autoOpenPrintPreview) : undefined
         }
       });
     } else {
@@ -76,7 +97,17 @@ export const updateSettings = async (req: AuthenticatedRequest, res: Response) =
           whatsappApiProvider,
           whatsappApiKey,
           whatsappTemplateId,
-          whatsappAutoMsgEnabled: Boolean(whatsappAutoMsgEnabled)
+          whatsappAutoMsgEnabled: Boolean(whatsappAutoMsgEnabled),
+          website,
+          digitalSignature,
+          officialStamp,
+          businessEmail,
+          smtpHost,
+          smtpPort: parsedSmtpPort,
+          smtpUsername,
+          smtpPassword,
+          ownerName,
+          autoOpenPrintPreview: Boolean(autoOpenPrintPreview)
         }
       });
     }

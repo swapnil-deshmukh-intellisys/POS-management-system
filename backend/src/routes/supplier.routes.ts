@@ -25,7 +25,14 @@ import {
   receivePurchaseOrder,
   approveSupplierReturn,
   getExpiryRisks,
-  getAISourcingAnalytics
+  getAISourcingAnalytics,
+  getSupplierActivities,
+  sendPurchaseOrderWhatsApp,
+  sendPurchaseOrderEmail,
+  trackPurchaseOrderPrint,
+  getKitchenStockRequests,
+  createKitchenStockRequest,
+  updateKitchenStockRequestStatus
 } from '../controllers/supplier.controller';
 import { authenticateToken } from '../middleware/auth';
 
@@ -41,6 +48,7 @@ router.get('/ai-suggestions', getAISuggestions as any);
 // Custom Analytics
 router.get('/analytics/expiry-risks', getExpiryRisks as any);
 router.get('/analytics/ai-analytics', getAISourcingAnalytics as any);
+router.get('/activities', getSupplierActivities as any);
 
 // Purchase Orders
 router.get('/pos', getPurchaseOrders as any);
@@ -48,6 +56,9 @@ router.post('/pos', createPurchaseOrder as any);
 router.put('/pos/:id/status', updatePurchaseOrderStatus as any);
 router.put('/pos/:id/receive', receivePurchaseOrder as any);
 router.put('/pos/:id/pay', payPurchaseOrder as any);
+router.post('/pos/:id/whatsapp', sendPurchaseOrderWhatsApp as any);
+router.post('/pos/:id/email', sendPurchaseOrderEmail as any);
+router.post('/pos/:id/print', trackPurchaseOrderPrint as any);
 
 // GRNs
 router.get('/grns', getGRNs as any);
@@ -74,5 +85,10 @@ router.put('/:id', updateSupplier as any);
 router.delete('/:id', deleteSupplier as any);
 router.post('/:id/note', addSupplierNote as any);
 router.post('/:id/document', uploadSupplierDocument as any);
+
+// Kitchen Stock Requests Integration
+router.get('/kitchen-requests', getKitchenStockRequests as any);
+router.post('/kitchen-requests', createKitchenStockRequest as any);
+router.put('/kitchen-requests/:id/status', updateKitchenStockRequestStatus as any);
 
 export default router;

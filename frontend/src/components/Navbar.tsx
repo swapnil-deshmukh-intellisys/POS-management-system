@@ -165,11 +165,43 @@ export const Navbar: React.FC<NavbarProps> = ({ onSearchChange }) => {
       }
     };
 
+    const handleStockRequestMutated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const request = customEvent.detail;
+      if (request && (request.status === 'Pending' || request.status === 'Pending Approval')) {
+        const itemsListText = Array.isArray(request.items)
+          ? request.items.map((it: any) => `${it.productName} - ${it.quantity} ${it.unit}`).join('\n')
+          : '';
+        // Show Toast Notification
+        setToastNotif({
+          id: request.id || String(Math.random()),
+          message: `New Kitchen Request\n\n${itemsListText}\n\nRequested By: ${request.requestedBy || 'Kitchen Manager'}\nRequest #${request.requestNo}\n\nClick to Review`
+        });
+        setTimeout(() => setToastNotif(null), 10000);
+        
+        // Play sound
+        playNotificationSound();
+        
+        // Add to categoryNotifications
+        setCategoryNotifications(prev => [
+          {
+            id: request.id || String(Math.random()),
+            action: `New Inventory Request: ${request.requestNo}`,
+            categoryName: `Requested by ${request.requestedBy || 'Kitchen Staff'} with ${Array.isArray(request.items) ? request.items.length : 0} items`,
+            type: 'KITCHEN_REQUEST'
+          },
+          ...prev
+        ]);
+      }
+    };
+
     window.addEventListener('storage', loadCategoryNotifications);
     window.addEventListener('category-notification-added', loadCategoryNotifications);
+    window.addEventListener('stock-request-mutated', handleStockRequestMutated);
     return () => {
       window.removeEventListener('storage', loadCategoryNotifications);
       window.removeEventListener('category-notification-added', loadCategoryNotifications);
+      window.removeEventListener('stock-request-mutated', handleStockRequestMutated);
     };
   }, []);
 
@@ -194,6 +226,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onSearchChange }) => {
           setTimeout(() => {
             setToastNotif(null);
           }, 6000);
+        } else if (payload.type === 'STOCK_REQUEST_MUTATED') {
+          console.log('[Navbar SSE] Received stock request mutation:', payload.data);
+          window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: payload.data }));
         }
       } catch (err) {
         console.error('[Navbar SSE] Error handling message:', err);
@@ -334,19 +369,21 @@ export const Navbar: React.FC<NavbarProps> = ({ onSearchChange }) => {
         </div>
       </div>
       {toastNotif && (
-        <div className="fixed top-4 right-4 z-[9999] bg-slate-900 border border-emerald-500 text-white rounded-xl shadow-2xl p-4 flex items-center gap-3 animate-bounce-in max-w-sm pointer-events-auto">
-          <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+        <div className="fixed top-4 right-4 z-[9999] bg-slate-950 border border-emerald-500 text-white rounded-2xl shadow-2xl p-5 flex items-start gap-3 animate-bounce-in w-80 max-w-sm pointer-events-auto">
+          <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
             <Bell className="w-4 h-4" />
           </div>
           <div className="text-left flex-1 min-w-0">
-            <h5 className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">Order Ready Alert</h5>
-            <p className="text-xs font-extrabold text-slate-200 mt-0.5 truncate">{toastNotif.message}</p>
+            <h5 className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">
+              {toastNotif.message.includes('Inventory') ? 'New Stock Request' : 'Order Ready Alert'}
+            </h5>
+            <p className="text-xs font-semibold text-slate-200 mt-1 whitespace-pre-line leading-relaxed">{toastNotif.message}</p>
           </div>
           <button 
             onClick={() => setToastNotif(null)} 
-            className="text-slate-400 hover:text-white font-bold text-xs pl-2 shrink-0 border-l border-slate-800/60"
+            className="text-slate-400 hover:text-white font-bold text-xs pl-2 shrink-0 border-l border-slate-800/60 self-center"
           >
-            Close
+            ✕
           </button>
         </div>
       )}

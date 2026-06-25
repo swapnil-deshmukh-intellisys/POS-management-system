@@ -26,7 +26,8 @@ import {
   FileSpreadsheet,
   Trash2,
   Pencil,
-  Plus
+  Plus,
+  Mail
 } from 'lucide-react';
 
 // Structured Mock Data for ERP Reporting Engine
@@ -1805,6 +1806,7 @@ export const Reports: React.FC = () => {
 
 const settingsTabs: Array<[string, string, React.ElementType, string]> = [
   ['Store Info', 'Store & Business profiles', Building2, 'text-blue-600 bg-blue-50'],
+  ['Business Email Settings', 'SMTP server configuration', Mail, 'text-teal-600 bg-teal-50'],
   ['Billing Settings', 'Auto-gen, prefixes & discounts', FileText, 'text-emerald-600 bg-emerald-50'],
   ['GST & Tax', 'GST rates, CGST, SGST, IGST rules', ShieldCheck, 'text-amber-600 bg-amber-50'],
   ['Inventory Settings', 'Low stock & negative stock controls', Globe2, 'text-rose-600 bg-rose-50'],
@@ -2019,6 +2021,15 @@ export const Settings: React.FC = () => {
   const [shopLogo, setShopLogo] = useState('');
   const [shopBanner, setShopBanner] = useState('');
   const [footerMessage, setFooterMessage] = useState('Thank you for visiting our store');
+  const [digitalSignature, setDigitalSignature] = useState('');
+  const [officialStamp, setOfficialStamp] = useState('');
+  const [businessEmail, setBusinessEmail] = useState('');
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('587');
+  const [smtpUsername, setSmtpUsername] = useState('');
+  const [smtpPassword, setSmtpPassword] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [autoOpenPrintPreview, setAutoOpenPrintPreview] = useState(false);
 
   // 2. Billing States
   const [autoGenInvoice, setAutoGenInvoice] = useState(true);
@@ -2189,6 +2200,15 @@ export const Settings: React.FC = () => {
         if (parsed.systemNotifications !== undefined) setSystemNotifications(parsed.systemNotifications);
 
         if (parsed.autoBackupSchedule) setAutoBackupSchedule(parsed.autoBackupSchedule);
+        if (parsed.digitalSignature) setDigitalSignature(parsed.digitalSignature);
+        if (parsed.officialStamp) setOfficialStamp(parsed.officialStamp);
+        if (parsed.businessEmail) setBusinessEmail(parsed.businessEmail);
+        if (parsed.smtpHost) setSmtpHost(parsed.smtpHost);
+        if (parsed.smtpPort) setSmtpPort(parsed.smtpPort);
+        if (parsed.smtpUsername) setSmtpUsername(parsed.smtpUsername);
+        if (parsed.smtpPassword) setSmtpPassword(parsed.smtpPassword);
+        if (parsed.ownerName) setOwnerName(parsed.ownerName);
+        if (parsed.autoOpenPrintPreview) setAutoOpenPrintPreview(parsed.autoOpenPrintPreview);
       }
     } catch (e) {
       console.warn('Local settings parse issue', e);
@@ -2214,6 +2234,15 @@ export const Settings: React.FC = () => {
         setWhatsappApiKey(settingsData.whatsappApiKey || '');
         setWhatsappTemplateId(settingsData.whatsappTemplateId || '');
         setWhatsappAutoMsgEnabled(settingsData.whatsappAutoMsgEnabled ?? false);
+        setDigitalSignature(settingsData.digitalSignature || '');
+        setOfficialStamp(settingsData.officialStamp || '');
+        setBusinessEmail(settingsData.businessEmail || '');
+        setSmtpHost(settingsData.smtpHost || '');
+        setSmtpPort(settingsData.smtpPort ? String(settingsData.smtpPort) : '587');
+        setSmtpUsername(settingsData.smtpUsername || '');
+        setSmtpPassword(settingsData.smtpPassword || '');
+        setOwnerName(settingsData.ownerName || '');
+        setAutoOpenPrintPreview(settingsData.autoOpenPrintPreview ?? false);
       }
       if (Array.isArray(productsData)) setTotalProducts(productsData.length);
       if (Array.isArray(customersData)) setTotalCustomers(customersData.length);
@@ -2248,7 +2277,17 @@ export const Settings: React.FC = () => {
       whatsappApiProvider,
       whatsappApiKey,
       whatsappTemplateId,
-      whatsappAutoMsgEnabled
+      whatsappAutoMsgEnabled,
+      website,
+      digitalSignature,
+      officialStamp,
+      businessEmail,
+      smtpHost,
+      smtpPort,
+      smtpUsername,
+      smtpPassword,
+      ownerName,
+      autoOpenPrintPreview
     };
 
     try {
@@ -2269,10 +2308,19 @@ export const Settings: React.FC = () => {
         country,
         shopEmail: saved.email || shopEmail,
         mobileNumber: saved.mobile || mobileNumber,
-        website,
+        website: saved.website || website,
         shopLogo: saved.logo || shopLogo,
         shopBanner,
         footerMessage: saved.footerMessage || footerMessage,
+        digitalSignature: saved.digitalSignature || digitalSignature,
+        officialStamp: saved.officialStamp || officialStamp,
+        businessEmail: saved.businessEmail || businessEmail,
+        smtpHost: saved.smtpHost || smtpHost,
+        smtpPort: saved.smtpPort || smtpPort,
+        smtpUsername: saved.smtpUsername || smtpUsername,
+        smtpPassword: saved.smtpPassword || smtpPassword,
+        ownerName: saved.ownerName || ownerName,
+        autoOpenPrintPreview: saved.autoOpenPrintPreview ?? autoOpenPrintPreview,
 
         autoGenInvoice,
         autoGenBill,
@@ -2557,13 +2605,24 @@ export const Settings: React.FC = () => {
                     />
                   </div>
 
-                  <div className="space-y-1 text-left lg:col-span-3">
+                  <div className="space-y-1 text-left lg:col-span-2">
                     <label className="text-xs font-bold text-black block mb-1">Receipt Footer Message</label>
                     <input
                       type="text"
                       value={footerMessage}
                       onChange={(e) => setFooterMessage(e.target.value)}
                       placeholder="Thank you for visiting our store"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-normal text-black focus:bg-white focus:outline-none focus:border-black transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-left lg:col-span-1">
+                    <label className="text-xs font-bold text-black block mb-1">Business Owner Name</label>
+                    <input
+                      type="text"
+                      value={ownerName}
+                      onChange={(e) => setOwnerName(e.target.value)}
+                      placeholder="e.g. Harshada Nichit"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-normal text-black focus:bg-white focus:outline-none focus:border-black transition"
                     />
                   </div>
@@ -2600,6 +2659,110 @@ export const Settings: React.FC = () => {
                         <img src={shopBanner} alt="Store Banner Preview" className="h-16 w-full object-cover rounded-lg" />
                       </div>
                     )}
+                  </div>
+
+                  <div className="space-y-1 text-left">
+                    <label className="text-xs font-bold text-black block mb-1">Digital Signature Image (Base64 URL)</label>
+                    <textarea
+                      value={digitalSignature}
+                      onChange={(e) => setDigitalSignature(e.target.value)}
+                      placeholder="data:image/png;base64,..."
+                      rows={3}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-normal text-black focus:bg-white focus:outline-none focus:border-black transition"
+                    />
+                    {digitalSignature && (
+                      <div className="mt-2.5 p-2 border border-slate-200 rounded-xl inline-block bg-white">
+                        <img src={digitalSignature} alt="Signature Preview" className="h-12 w-auto object-contain" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1 text-left">
+                    <label className="text-xs font-bold text-black block mb-1">Official Business Stamp (Base64 URL)</label>
+                    <textarea
+                      value={officialStamp}
+                      onChange={(e) => setOfficialStamp(e.target.value)}
+                      placeholder="data:image/png;base64,..."
+                      rows={3}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-normal text-black focus:bg-white focus:outline-none focus:border-black transition"
+                    />
+                    {officialStamp && (
+                      <div className="mt-2.5 p-2 border border-slate-200 rounded-xl inline-block bg-white">
+                        <img src={officialStamp} alt="Stamp Preview" className="h-12 w-auto object-contain" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Business Email Settings */}
+            {activeTab === 'Business Email Settings' && (
+              <div className="space-y-6">
+                <h2 className="text-lg font-semibold text-black uppercase tracking-wider border-b border-slate-200 pb-2">Business Email Settings</h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-1 text-left">
+                    <label className="text-xs font-bold text-black block mb-1">Business Email</label>
+                    <input
+                      type="email"
+                      value={businessEmail}
+                      onChange={(e) => setBusinessEmail(e.target.value)}
+                      placeholder="orders@restaurant.com"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-normal text-black focus:bg-white focus:outline-none focus:border-black transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-left">
+                    <label className="text-xs font-bold text-black block mb-1">SMTP Host</label>
+                    <input
+                      type="text"
+                      value={smtpHost}
+                      onChange={(e) => setSmtpHost(e.target.value)}
+                      placeholder="smtp.mailtrap.io"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-normal text-black focus:bg-white focus:outline-none focus:border-black transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-left">
+                    <label className="text-xs font-bold text-black block mb-1">SMTP Port</label>
+                    <input
+                      type="text"
+                      value={smtpPort}
+                      onChange={(e) => setSmtpPort(e.target.value)}
+                      placeholder="587"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-normal text-black focus:bg-white focus:outline-none focus:border-black transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-left">
+                    <label className="text-xs font-bold text-black block mb-1">SMTP Username</label>
+                    <input
+                      type="text"
+                      value={smtpUsername}
+                      onChange={(e) => setSmtpUsername(e.target.value)}
+                      placeholder="smtp_username"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-normal text-black focus:bg-white focus:outline-none focus:border-black transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-left md:col-span-2">
+                    <label className="text-xs font-bold text-black block mb-1">SMTP Password</label>
+                    <input
+                      type="password"
+                      value={smtpPassword}
+                      onChange={(e) => setSmtpPassword(e.target.value)}
+                      placeholder="••••••••••••••••"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-normal text-black focus:bg-white focus:outline-none focus:border-black transition"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-slate-50/50 border border-slate-200 rounded-2xl md:col-span-2 mt-2">
+                    <div>
+                      <span className="text-xs font-bold text-black block">Auto Open Print Preview After Order Creation</span>
+                      <span className="text-[10px] text-black/50 font-normal mt-0.5 block">Automatically open print preview modal when a new purchase order is saved</span>
+                    </div>
+                    <Toggle checked={autoOpenPrintPreview} onChange={() => setAutoOpenPrintPreview(!autoOpenPrintPreview)} />
                   </div>
                 </div>
               </div>

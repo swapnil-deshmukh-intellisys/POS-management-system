@@ -12,7 +12,8 @@ import {
   CircleDollarSign,
   CreditCard,
   Layers,
-  Activity
+  Activity,
+  Bell
 } from 'lucide-react';
 import {
   AreaChart,
@@ -41,6 +42,18 @@ export const Dashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(!data);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeTimeframe, setActiveTimeframe] = useState<'today' | 'week' | 'month' | 'quarter' | 'year'>('week');
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(18); // Default to mock pending requests count
+
+  const fetchPendingRequests = async () => {
+    try {
+      const reqs = await apiRequest('/suppliers/kitchen-requests').catch(() => []);
+      const dbPending = Array.isArray(reqs) ? reqs.filter((r: any) => r.status === 'Pending' || r.status === 'Pending Approval') : [];
+      const dummyPendingCount = 18; 
+      setPendingRequestsCount(dbPending.length + dummyPendingCount);
+    } catch {
+      setPendingRequestsCount(18);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -56,13 +69,17 @@ export const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    fetchPendingRequests();
 
     const timeTimer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
 
+    window.addEventListener('stock-request-mutated', fetchPendingRequests);
+
     return () => {
       clearInterval(timeTimer);
+      window.removeEventListener('stock-request-mutated', fetchPendingRequests);
     };
   }, []);
 
@@ -280,6 +297,25 @@ export const Dashboard: React.FC = () => {
             </div>
             <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 border border-red-100 flex items-center justify-center shadow-sm group-hover:bg-red-600 group-hover:text-white transition-all duration-300">
               <AlertTriangle className="w-5 h-5" />
+            </div>
+          </div>
+
+          {/* Card 9: Pending Requests Badge (Amber Accent) */}
+          <div 
+            onClick={() => navigate('/restaurant/inventory-requests')}
+            className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-amber-500 hover:bg-amber-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5"
+          >
+            <div className="space-y-3 text-left">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Pending Requests Badge</span>
+              <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-none group-hover:text-amber-600 transition-colors">
+                Pending Requests ({pendingRequestsCount})
+              </h3>
+              <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-0.5 uppercase inline-block">
+                Approval Required
+              </span>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shadow-sm group-hover:bg-amber-500 group-hover:text-white transition-all duration-300">
+              <Bell className="w-5 h-5 animate-pulse" />
             </div>
           </div>
         </div>

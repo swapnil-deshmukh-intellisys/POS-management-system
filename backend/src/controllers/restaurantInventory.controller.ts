@@ -77,7 +77,7 @@ export const getInventoryItems = async (req: Request, res: Response) => {
         supplier: true,
         batches: true
       },
-      orderBy: { name: 'asc' }
+      orderBy: { createdAt: 'desc' }
     });
 
     return res.status(200).json(items);
@@ -371,7 +371,7 @@ export const createInventoryCategory = async (req: Request, res: Response) => {
 
 export const getInventorySuppliers = async (req: Request, res: Response) => {
   try {
-    const sups = await prisma.restaurantInventorySupplier.findMany({ orderBy: { name: 'asc' } });
+    const sups = await prisma.restaurantInventorySupplier.findMany({ orderBy: { createdAt: 'desc' } });
     return res.status(200).json(sups);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
