@@ -47,6 +47,7 @@ import { PublicQRMenu } from './pages/PublicQRMenu';
 import { WaiterDashboard } from './pages/WaiterDashboard';
 import { TakeOrder } from './pages/TakeOrder';
 import { GenerateBill } from './pages/GenerateBill';
+import { Suppliers as RestaurantSuppliers } from './pages/RestaurantSuppliers';
 
 
 // Private Route Guard Component
@@ -72,15 +73,45 @@ const MainDashboard: React.FC = () => {
 
 // Main Layout Wrapper
 const DashboardLayout: React.FC = () => {
+  const [isCollapsed, setIsCollapsed] = React.useState<boolean>(() => {
+    return localStorage.getItem('sidebar-collapsed') === 'true';
+  });
+  const [isMobileOpen, setIsMobileOpen] = React.useState<boolean>(false);
+
+  const toggleSidebar = () => {
+    if (window.innerWidth < 1024) {
+      setIsMobileOpen(prev => !prev);
+    } else {
+      setIsCollapsed(prev => {
+        const next = !prev;
+        localStorage.setItem('sidebar-collapsed', String(next));
+        return next;
+      });
+    }
+  };
+
+  const closeMobileSidebar = () => {
+    setIsMobileOpen(false);
+  };
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#f8fafc] flex">
       {/* Sidebar Panel Left */}
-      <Sidebar />
+      <Sidebar
+        isCollapsed={isCollapsed}
+        isMobileOpen={isMobileOpen}
+        onCloseMobile={closeMobileSidebar}
+      />
 
       {/* Main Core View Area */}
-      <div className="flex min-w-0 flex-1 flex-col lg:ml-64 lg:w-[calc(100%-16rem)]">
+      <div className={`flex min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out
+        ${isCollapsed ? 'lg:ml-20 lg:w-[calc(100%-5rem)]' : 'lg:ml-64 lg:w-[calc(100%-16rem)]'}`}
+      >
         {/* Navbar Header Top */}
-        <Navbar />
+        <Navbar
+          isCollapsed={isCollapsed}
+          onToggleSidebar={toggleSidebar}
+        />
 
         {/* Dynamic Pages Area */}
         <main className="min-w-0 flex-grow overflow-x-hidden overflow-y-auto px-4 pb-8 pt-20 sm:px-6 lg:px-8">
@@ -113,7 +144,7 @@ const DashboardLayout: React.FC = () => {
             <Route path="/restaurant/generate-bill" element={<GenerateBill />} />
             <Route path="/generate-bill" element={<GenerateBill />} />
             <Route path="/restaurant/tables" element={<TableManagement />} />
-             <Route path="/restaurant/kitchen" element={<KitchenDisplay />} />
+            <Route path="/restaurant/kitchen" element={<KitchenDisplay />} />
             <Route path="/restaurant/kitchen-dashboard" element={<KitchenDashboard />} />
             <Route path="/restaurant/menu" element={<DigitalMenuBuilder />} />
             <Route path="/restaurant/waiters" element={<WaiterManagement />} />
@@ -125,6 +156,7 @@ const DashboardLayout: React.FC = () => {
             <Route path="/restaurant/inventory" element={<RestaurantInventory />} />
             <Route path="/restaurant/inventory-requests" element={<InventoryRequests />} />
             <Route path="/restaurant/stock-requests" element={<InventoryRequests />} />
+            <Route path="/restaurant/suppliers" element={<RestaurantSuppliers />} />
             {/* Fallback to Dashboard */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

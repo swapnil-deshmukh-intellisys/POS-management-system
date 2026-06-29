@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { sendPurchaseOrderEmailService } from '../utils/email.service';
 import PDFDocument from 'pdfkit';
 import { broadcast } from '../utils/realtime';
+import { ensureKitchenDummyDataExists } from './restaurant.controller';
 
 // Helper to seed initial sample data if DB is empty
 const ensureSampleDataExists = async () => {
@@ -447,6 +448,14 @@ export const createSupplier = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ message: 'Missing required fields (name, contactPerson, mobile)' });
     }
 
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(mobile)) {
+      return res.status(400).json({ message: 'Mobile number must be exactly 10 digits and numeric-only.' });
+    }
+    if (whatsapp && !phoneRegex.test(whatsapp)) {
+      return res.status(400).json({ message: 'WhatsApp number must be exactly 10 digits and numeric-only.' });
+    }
+
     const supplier = await prisma.supplier.create({
       data: {
         name,
@@ -496,6 +505,14 @@ export const updateSupplier = async (req: AuthenticatedRequest, res: Response) =
   } = req.body;
 
   try {
+    const phoneRegex = /^[0-9]{10}$/;
+    if (mobile && !phoneRegex.test(mobile)) {
+      return res.status(400).json({ message: 'Mobile number must be exactly 10 digits and numeric-only.' });
+    }
+    if (whatsapp && !phoneRegex.test(whatsapp)) {
+      return res.status(400).json({ message: 'WhatsApp number must be exactly 10 digits and numeric-only.' });
+    }
+
     const updated = await prisma.supplier.update({
       where: { id },
       data: {
@@ -564,13 +581,23 @@ export const getPurchaseOrders = async (req: AuthenticatedRequest, res: Response
 };
 
 export const createPurchaseOrder = async (req: AuthenticatedRequest, res: Response) => {
-  const { supplierId, expectedDeliveryDate, totalAmount, items, subtotal, taxAmount, discountAmount, kitchenRequestId } = req.body;
+  const { supplierId, expectedDeliveryDate, totalAmount, items, subtotal, taxAmount, discountAmount, kitchenRequestId, createdBy } = req.body;
   try {
     const deliveryDate = expectedDeliveryDate ? new Date(expectedDeliveryDate) : new Date();
 
     const year = new Date().getFullYear();
     const count = await prisma.purchaseOrder.count();
     const generatedOrderNumber = `PO-${year}-${String(count + 1).padStart(4, '0')}`;
+
+    let finalCreatedBy = createdBy === 'Kitchen' ? 'Kitchen' : 'Admin';
+    if (kitchenRequestId) {
+      const kitchenReq = await prisma.kitchenStockRequest.findUnique({
+        where: { id: kitchenRequestId }
+      });
+      if (kitchenReq && kitchenReq.createdBy) {
+        finalCreatedBy = kitchenReq.createdBy;
+      }
+    }
 
     const po = await prisma.purchaseOrder.create({
       data: {
@@ -583,6 +610,7 @@ export const createPurchaseOrder = async (req: AuthenticatedRequest, res: Respon
         totalAmount: parseFloat(String(totalAmount)),
         items: items || [],
         status: 'Draft',
+        createdBy: finalCreatedBy,
         paidAmount: 0.0,
         paymentStatus: 'Pending'
       }
@@ -762,15 +790,17 @@ export const payPurchaseOrder = async (req: AuthenticatedRequest, res: Response)
 
 export const updatePurchaseOrderStatus = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, supplierId } = req.body;
 
   if (req.user?.role !== 'ADMIN' && req.user?.role !== 'MANAGER') {
     return res.status(403).json({ message: 'Unauthorized. Only Admins or Managers can update PO status.' });
   }
 
-  const validStatuses = ['Draft', 'Sent', 'Packed', 'Dispatched', 'In Transit', 'Delivered', 'Received'];
-  if (!validStatuses.includes(status)) {
-    return res.status(400).json({ message: 'Invalid Purchase Order status.' });
+  if (status) {
+    const validStatuses = ['Draft', 'Sent', 'Packed', 'Dispatched', 'In Transit', 'Delivered', 'Received'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid Purchase Order status.' });
+    }
   }
 
   try {
@@ -781,11 +811,74 @@ export const updatePurchaseOrderStatus = async (req: AuthenticatedRequest, res: 
 
     const po = await prisma.purchaseOrder.update({
       where: { id },
-      data: { status }
+      data: { 
+        status: status || undefined,
+        supplierId: supplierId || undefined
+      },
+      include: {
+        supplier: true
+      }
     });
+
+    // Auto-update stock levels and log movement when status transitions to Delivered or Received
+    if ((status === 'Delivered' || status === 'Received') && existingPO.status !== 'Delivered' && existingPO.status !== 'Received') {
+      const items = Array.isArray(po.items) ? po.items : [];
+      for (const item of items as any[]) {
+        if (!item.productName) continue;
+
+        let invItem = await prisma.restaurantInventoryItem.findFirst({
+          where: { name: { equals: item.productName, mode: 'insensitive' } }
+        });
+
+        if (!invItem) {
+          let cat = await prisma.restaurantInventoryCategory.findFirst({
+            where: { name: 'General' }
+          });
+          if (!cat) {
+            cat = await prisma.restaurantInventoryCategory.findFirst();
+          }
+          if (!cat) {
+            cat = await prisma.restaurantInventoryCategory.create({
+              data: { name: 'General' }
+            });
+          }
+
+          invItem = await prisma.restaurantInventoryItem.create({
+            data: {
+              name: item.productName,
+              categoryId: cat.id,
+              unitType: item.unit || 'Kg',
+              minimumStock: 10.0,
+              currentStock: 0.0,
+              purchasePrice: parseFloat(String(item.purchasePrice || item.costPrice || 0.0))
+            }
+          });
+        }
+
+        const qtyToAdd = parseFloat(String(item.quantity)) || 0.0;
+
+        await prisma.restaurantInventoryItem.update({
+          where: { id: invItem.id },
+          data: {
+            currentStock: { increment: qtyToAdd }
+          }
+        });
+
+        await prisma.restaurantInventoryMovement.create({
+          data: {
+            itemId: invItem.id,
+            type: 'Purchase',
+            quantity: qtyToAdd,
+            notes: `Auto stock increment from PO Delivered/Received: ${po.orderNumber}`
+          }
+        });
+      }
+    }
+
     broadcast('STOCK_REQUEST_MUTATED', po);
     return res.status(200).json(po);
   } catch (error: any) {
+    console.error('Error updating purchase order status:', error);
     return res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 };
@@ -1916,6 +2009,7 @@ export const trackPurchaseOrderPrint = async (req: AuthenticatedRequest, res: Re
 
 export const getKitchenStockRequests = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    await ensureKitchenDummyDataExists();
     const requests = await prisma.kitchenStockRequest.findMany({
       include: {
         purchaseOrder: {
@@ -1934,24 +2028,27 @@ export const getKitchenStockRequests = async (req: AuthenticatedRequest, res: Re
 };
 
 export const createKitchenStockRequest = async (req: AuthenticatedRequest, res: Response) => {
-  const { items } = req.body;
+  const { items, createdBy } = req.body;
   try {
     const count = await prisma.kitchenStockRequest.count();
     const year = new Date().getFullYear();
     const requestNo = `KR-${year}-${String(count + 1).padStart(5, '0')}`;
     const requestedBy = req.user?.name || 'Kitchen Staff';
+    const finalCreatedBy = createdBy === 'Admin' ? 'Admin' : 'Kitchen';
+    const status = 'Pending Approval';
 
     const request = await prisma.kitchenStockRequest.create({
       data: {
         requestNo,
         requestedBy,
+        createdBy: finalCreatedBy,
         items: items || [],
-        status: 'Pending Approval'
+        status
       }
     });
 
     await prisma.supplierActivity.create({
-      data: { activity: `Stock Request Created: ${requestNo} by ${requestedBy}` }
+      data: { activity: `Stock Request Created: ${requestNo} by ${requestedBy} (Created By: ${finalCreatedBy})` }
     });
 
     broadcast('STOCK_REQUEST_MUTATED', request);
@@ -1965,18 +2062,114 @@ export const createKitchenStockRequest = async (req: AuthenticatedRequest, res: 
 
 export const updateKitchenStockRequestStatus = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const { status, purchaseOrderId } = req.body;
+  const { status, purchaseOrderId, rejectionReason } = req.body;
   try {
     const validStatuses = ['Pending', 'Approved', 'Rejected', 'Converted', 'Pending Approval'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid status' });
     }
 
+    const existing = await prisma.kitchenStockRequest.findUnique({
+      where: { id }
+    });
+    if (!existing) {
+      return res.status(404).json({ message: 'Kitchen stock request not found' });
+    }
+
+    let poId = purchaseOrderId || undefined;
+    let finalStatus = status;
+
+    // Handle auto PO creation on Approve
+    if (status === 'Approved') {
+      finalStatus = 'Converted';
+      let defaultSupplier = await prisma.supplier.findFirst({
+        where: { status: 'Active' }
+      });
+      if (!defaultSupplier) {
+        defaultSupplier = await prisma.supplier.findFirst();
+      }
+      if (!defaultSupplier) {
+        defaultSupplier = await prisma.supplier.create({
+          data: {
+            name: 'Default Kitchen Supplier',
+            companyName: 'Kitchen Sourcing Corp',
+            contactPerson: 'Manager',
+            mobile: '9876543210',
+            email: 'supplier@kitchen.com',
+            gstNumber: 'GST-DEFAULT',
+            address: '123 Supply Lane',
+            city: 'Mumbai',
+            state: 'Maharashtra',
+            pincode: '400001',
+            status: 'Active'
+          }
+        });
+      }
+
+      const year = new Date().getFullYear();
+      const count = await prisma.purchaseOrder.count();
+      const generatedOrderNumber = `PO-${year}-${String(count + 1).padStart(4, '0')}`;
+
+      const itemsArray = Array.isArray(existing.items) ? existing.items : [];
+      const poItemsData: any[] = [];
+      for (const item of itemsArray as any[]) {
+        let costPrice = 0.0;
+        let productId = '';
+        const dbProduct = await prisma.product.findFirst({
+          where: { name: { equals: item.productName, mode: 'insensitive' }, isDeleted: false }
+        });
+        if (dbProduct) {
+          costPrice = dbProduct.costPrice || 0.0;
+          productId = dbProduct.id;
+        }
+        poItemsData.push({
+          productId,
+          productName: item.productName,
+          quantity: parseFloat(String(item.quantity)) || 1.0,
+          unit: item.unit || 'Kg',
+          purchasePrice: costPrice
+        });
+      }
+
+      const po = await prisma.purchaseOrder.create({
+        data: {
+          supplierId: defaultSupplier.id,
+          orderNumber: generatedOrderNumber,
+          expectedDeliveryDate: new Date(Date.now() + 3 * 24 * 3600 * 1000),
+          subtotal: 0.0,
+          taxAmount: 0.0,
+          discountAmount: 0.0,
+          totalAmount: poItemsData.reduce((acc, it) => acc + (it.quantity * it.purchasePrice), 0.0),
+          items: poItemsData,
+          status: 'Draft',
+          createdBy: existing.requestedBy || 'Kitchen',
+          paidAmount: 0.0,
+          paymentStatus: 'Pending'
+        }
+      });
+
+      poId = po.id;
+
+      await prisma.deliveryTracking.create({
+        data: {
+          purchaseOrderId: po.id,
+          supplierId: defaultSupplier.id,
+          currentStatus: 'Created',
+          notes: 'Auto-created from Approved Kitchen Stock Request.'
+        }
+      });
+
+      await prisma.supplierActivity.create({
+        data: { activity: `Purchase Order ${generatedOrderNumber} automatically created from Approved Stock Request ${existing.requestNo}` }
+      });
+    }
+
     const updated = await prisma.kitchenStockRequest.update({
       where: { id },
       data: { 
-        status,
-        purchaseOrderId: purchaseOrderId || undefined
+        status: finalStatus,
+        rejectionReason: finalStatus === 'Rejected' ? (rejectionReason || 'No reason specified') : null,
+        purchaseOrderId: poId
       },
       include: {
         purchaseOrder: {
@@ -1989,7 +2182,7 @@ export const updateKitchenStockRequestStatus = async (req: AuthenticatedRequest,
 
     const userName = req.user?.name || 'Admin';
     await prisma.supplierActivity.create({
-      data: { activity: `Stock Request ${updated.requestNo} status updated to ${status} by ${userName}` }
+      data: { activity: `Stock Request ${updated.requestNo} status updated to ${finalStatus} by ${userName}` }
     });
 
     broadcast('STOCK_REQUEST_MUTATED', updated);

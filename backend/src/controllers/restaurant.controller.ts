@@ -116,6 +116,270 @@ async function getActualRestaurantId(clientRestaurantId?: string | any): Promise
   return restaurant.id;
 }
 
+export async function ensureKitchenDummyDataExists() {
+  try {
+    let restaurant = await prisma.restaurant.findFirst();
+    if (!restaurant) {
+      restaurant = await prisma.restaurant.create({
+        data: {
+          name: 'Central Diner',
+          type: 'RESTAURANT',
+          address: '123 Main St'
+        }
+      });
+    }
+    const restId = restaurant.id;
+
+    // Ensure standard waiters
+    const waiters = ['Rahul', 'Akshay', 'Ritesh', 'Adesh', 'Sagar', 'Pratik', 'Rohan', 'Amit'];
+    const waiterIds: string[] = [];
+    for (const name of waiters) {
+      let waiter = await prisma.restaurantWaiter.findFirst({
+        where: { name, restaurantId: restId }
+      });
+      if (!waiter) {
+        waiter = await prisma.restaurantWaiter.create({
+          data: {
+            restaurantId: restId,
+            name,
+            mobile: '98765432' + Math.floor(10 + Math.random() * 90),
+            employeeCode: 'WT' + Math.floor(100 + Math.random() * 900),
+            email: name.toLowerCase() + '@restaurant.com',
+            status: 'ACTIVE'
+          }
+        });
+      }
+      waiterIds.push(waiter.id);
+    }
+
+    // Ensure tables
+    const tableIds: string[] = [];
+    for (let i = 1; i <= 20; i++) {
+      const tableNumber = `Table ${i}`;
+      let table = await prisma.restaurantTable.findFirst({
+        where: { tableNumber, restaurantId: restId }
+      });
+      if (!table) {
+        table = await prisma.restaurantTable.create({
+          data: {
+            restaurantId: restId,
+            tableNumber,
+            capacity: 4,
+            status: 'AVAILABLE'
+          }
+        });
+      }
+      tableIds.push(table.id);
+    }
+
+    // Ensure Menu Category
+    let category = await prisma.menuCategory.findFirst({
+      where: { restaurantId: restId }
+    });
+    if (!category) {
+      category = await prisma.menuCategory.create({
+        data: {
+          restaurantId: restId,
+          name: 'Main Course'
+        }
+      });
+    }
+
+    // Ensure Menu Items
+    const itemsData = [
+      { name: 'Chicken Biryani', price: 250 },
+      { name: 'Paneer Butter Masala', price: 220 },
+      { name: 'Veg Crispy', price: 160 },
+      { name: 'Fish Fry', price: 220 },
+      { name: 'Hakka Noodles', price: 150 },
+      { name: 'Cheese Burger', price: 140 },
+      { name: 'Butter Naan', price: 40 },
+      { name: 'Coke', price: 40 }
+    ];
+    const menuItems: any[] = [];
+    for (const item of itemsData) {
+      let menuItem = await prisma.menuItem.findFirst({
+        where: { name: item.name, categoryId: category.id }
+      });
+      if (!menuItem) {
+        menuItem = await prisma.menuItem.create({
+          data: {
+            categoryId: category.id,
+            name: item.name,
+            price: item.price,
+            status: 'AVAILABLE'
+          }
+        });
+      }
+      menuItems.push(menuItem);
+    }
+
+    // Seed KitchenOrders
+    const orderCount = await prisma.kitchenOrder.count();
+    if (orderCount === 0) {
+      console.log('[Seed] Seeding realistic dummy kitchen orders...');
+      // Seed 20 NEW orders
+      for (let i = 1; i <= 20; i++) {
+        const waiterId = waiterIds[Math.floor(Math.random() * waiterIds.length)];
+        const tableId = tableIds[Math.floor(Math.random() * tableIds.length)];
+        const item = menuItems[Math.floor(Math.random() * menuItems.length)];
+        await prisma.kitchenOrder.create({
+          data: {
+            tableId,
+            waiterId,
+            source: ['WALK_IN', 'QR', 'SWIGGY', 'ZOMATO'][Math.floor(Math.random() * 4)],
+            status: 'NEW',
+            totalAmount: item.price,
+            items: {
+              create: [
+                {
+                  menuItemId: item.id,
+                  quantity: 1,
+                  unitPrice: item.price
+                }
+              ]
+            }
+          }
+        });
+      }
+
+      // Seed 15 PREPARING orders
+      for (let i = 1; i <= 15; i++) {
+        const waiterId = waiterIds[Math.floor(Math.random() * waiterIds.length)];
+        const tableId = tableIds[Math.floor(Math.random() * tableIds.length)];
+        const item = menuItems[Math.floor(Math.random() * menuItems.length)];
+        await prisma.kitchenOrder.create({
+          data: {
+            tableId,
+            waiterId,
+            source: ['WALK_IN', 'QR', 'SWIGGY', 'ZOMATO'][Math.floor(Math.random() * 4)],
+            status: 'PREPARING',
+            totalAmount: item.price,
+            items: {
+              create: [
+                {
+                  menuItemId: item.id,
+                  quantity: 1,
+                  unitPrice: item.price
+                }
+              ]
+            }
+          }
+        });
+      }
+
+      // Seed 10 READY orders
+      for (let i = 1; i <= 10; i++) {
+        const waiterId = waiterIds[Math.floor(Math.random() * waiterIds.length)];
+        const tableId = tableIds[Math.floor(Math.random() * tableIds.length)];
+        const item = menuItems[Math.floor(Math.random() * menuItems.length)];
+        await prisma.kitchenOrder.create({
+          data: {
+            tableId,
+            waiterId,
+            source: ['WALK_IN', 'QR', 'SWIGGY', 'ZOMATO'][Math.floor(Math.random() * 4)],
+            status: 'READY',
+            totalAmount: item.price,
+            items: {
+              create: [
+                {
+                  menuItemId: item.id,
+                  quantity: 1,
+                  unitPrice: item.price
+                }
+              ]
+            }
+          }
+        });
+      }
+
+      // Seed 12 COMPLETED/SERVED orders
+      for (let i = 1; i <= 12; i++) {
+        const waiterId = waiterIds[Math.floor(Math.random() * waiterIds.length)];
+        const tableId = tableIds[Math.floor(Math.random() * tableIds.length)];
+        const item = menuItems[Math.floor(Math.random() * menuItems.length)];
+        await prisma.kitchenOrder.create({
+          data: {
+            tableId,
+            waiterId,
+            source: ['WALK_IN', 'QR', 'SWIGGY', 'ZOMATO'][Math.floor(Math.random() * 4)],
+            status: 'SERVED',
+            totalAmount: item.price,
+            items: {
+              create: [
+                {
+                  menuItemId: item.id,
+                  quantity: 1,
+                  unitPrice: item.price
+                }
+              ]
+            }
+          }
+        });
+      }
+    }
+
+    // Seed KitchenStockRequest
+    const requestCount = await prisma.kitchenStockRequest.count();
+    if (requestCount === 0) {
+      console.log('[Seed] Seeding realistic dummy kitchen stock requests...');
+      const year = new Date().getFullYear();
+
+      // 10 Pending requests
+      for (let i = 1; i <= 10; i++) {
+        const requestNo = `KR-${year}-PEND-${String(i).padStart(3, '0')}`;
+        await prisma.kitchenStockRequest.create({
+          data: {
+            requestNo,
+            requestedBy: 'Chef Deepak',
+            createdBy: 'Kitchen',
+            status: 'Pending Approval',
+            items: [
+              { productName: 'Premium Basmati Rice', quantity: 25, unit: 'Kg', notes: 'Urgent requirement for biryani section.' },
+              { productName: 'Refined Sugar', quantity: 10, unit: 'Kg', notes: 'For desserts.' }
+            ]
+          }
+        });
+      }
+
+      // 8 Approved requests (4 Kitchen, 4 Admin)
+      for (let i = 1; i <= 8; i++) {
+        const requestNo = `KR-${year}-APPR-${String(i).padStart(3, '0')}`;
+        const creator = i <= 4 ? 'Kitchen' : 'Admin';
+        await prisma.kitchenStockRequest.create({
+          data: {
+            requestNo,
+            requestedBy: creator === 'Kitchen' ? 'Chef Deepak' : 'Admin User',
+            createdBy: creator,
+            status: 'Approved',
+            items: [
+              { productName: 'Sunflower Cooking Oil', quantity: 15, unit: 'Liters', notes: 'Weekly replenishment.' }
+            ]
+          }
+        });
+      }
+
+      // 5 Rejected requests
+      for (let i = 1; i <= 5; i++) {
+        const requestNo = `KR-${year}-REJ-${String(i).padStart(3, '0')}`;
+        await prisma.kitchenStockRequest.create({
+          data: {
+            requestNo,
+            requestedBy: 'Chef Deepak',
+            createdBy: 'Kitchen',
+            status: 'Rejected',
+            items: [
+              { productName: 'Truffle Oil', quantity: 2, unit: 'Bottles', notes: 'For special event pasta.' }
+          ]
+        }
+      });
+    }
+  }
+  } catch (err) {
+    console.error('[Seed Error] Failed to seed kitchen dummy data:', err);
+  }
+}
+
 // 1. DASHBOARD METRICS
 export const getDashboardMetrics = async (req: Request, res: Response) => {
   const { restaurantId } = req.query;
@@ -124,6 +388,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
   }
 
   try {
+    await ensureKitchenDummyDataExists();
     const restId = await getActualRestaurantId(restaurantId);
 
     // Sales Today
@@ -975,6 +1240,7 @@ export const createPublicPaymentOrder = async (req: Request, res: Response) => {
 export const getKitchenOrders = async (req: Request, res: Response) => {
   const { restaurantId, includeServed } = req.query;
   try {
+    await ensureKitchenDummyDataExists();
     const restId = await getActualRestaurantId(restaurantId);
     const statusFilter = includeServed === 'true'
       ? undefined

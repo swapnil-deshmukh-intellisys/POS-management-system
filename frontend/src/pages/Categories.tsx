@@ -345,11 +345,41 @@ export const Categories: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500 font-semibold">
-                      Loading categories data...
-                    </td>
-                  </tr>
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-slate-100"></div>
+                          <div className="space-y-1.5">
+                            <div className="h-3.5 w-24 bg-slate-200 rounded"></div>
+                            <div className="h-3 w-32 bg-slate-200 rounded"></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4">
+                        <div className="h-3.5 w-20 bg-slate-200 rounded"></div>
+                      </td>
+                      <td className="py-4 text-right">
+                        <div className="h-3.5 w-8 bg-slate-200 rounded ml-auto"></div>
+                      </td>
+                      <td className="py-4 text-center">
+                        <div className="h-5 w-14 bg-slate-200 rounded-full mx-auto"></div>
+                      </td>
+                      <td className="py-4 text-center">
+                        <div className="h-3.5 w-6 bg-slate-200 rounded mx-auto"></div>
+                      </td>
+                      <td className="py-4">
+                        <div className="h-3.5 w-24 bg-slate-200 rounded"></div>
+                      </td>
+                      <td className="py-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <div className="w-6 h-6 bg-slate-200 rounded-lg"></div>
+                          <div className="w-6 h-6 bg-slate-200 rounded-lg"></div>
+                          <div className="w-6 h-6 bg-slate-200 rounded-lg"></div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 ) : categories.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-slate-500 font-semibold">

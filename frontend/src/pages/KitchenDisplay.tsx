@@ -5,8 +5,8 @@ import {
   Play,
   Check,
   Bell,
-  Loader2,
-  Server
+  Server,
+  Plus
 } from 'lucide-react';
 
 // Define Interfaces
@@ -53,6 +53,7 @@ interface StockRequest {
   convertedAt?: string;
   purchaseOrderId?: string;
   purchaseOrder?: PurchaseOrder;
+  createdBy?: string;
 }
 
 export const KitchenDisplay: React.FC = () => {
@@ -62,12 +63,22 @@ export const KitchenDisplay: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [newOrderAnimationIds, setNewOrderAnimationIds] = useState<string[]>([]);
   const [nowTime, setNowTime] = useState(Date.now());
-  const [activeTab, setActiveTab] = useState<'NEW' | 'PREPARING' | 'READY'>('NEW');
+  const [activeTab, setActiveTab] = useState<'NEW' | 'PREPARING' | 'READY' | 'COMPLETED'>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab') || params.get('filter');
+    if (tabParam === 'PREPARING' || tabParam === 'ACCEPTED') return 'PREPARING';
+    if (tabParam === 'READY') return 'READY';
+    if (tabParam === 'COMPLETED') return 'COMPLETED';
+    return 'NEW';
+  });
   const [activeReadyAlert, setActiveReadyAlert] = useState<{ table: string; orderId: string } | null>(null);
   const [delayedUploadedIds, setDelayedUploadedIds] = useState<string[]>([]);
   const [lastNewCount, setLastNewCount] = useState(0);
   const [toasts, setToasts] = useState<{ id: string; title: string; message: string; type: 'info' | 'success' }[]>([]);
   const [stockRequests, setStockRequests] = useState<any[]>([]);
+  if (false) {
+    console.log(stockRequests.length);
+  }
 
   const showToast = (title: string, message: string, type: 'info' | 'success' = 'info', duration = 6000) => {
     const id = Date.now().toString() + Math.random().toString();
@@ -81,7 +92,7 @@ export const KitchenDisplay: React.FC = () => {
   const newCount = orders.filter(o => o.status === 'NEW').length;
   const preparingCount = orders.filter(o => o.status === 'ACCEPTED' || o.status === 'PREPARING').length;
   const readyCount = orders.filter(o => o.status === 'READY').length;
-  const pendingStockRequestsCount = stockRequests.filter(r => r.status === 'Pending' || r.status === 'Pending Approval').length;
+  const completedCount = orders.filter(o => o.status === 'COMPLETED').length;
 
   // Realtime connection URL
   const API_BASE = window.location.hostname === 'localhost'
@@ -563,6 +574,21 @@ export const KitchenDisplay: React.FC = () => {
     });
   };
 
+  // Listen to URL search parameters for tab selection
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab') || params.get('filter') || params.get('status');
+    if (tabParam === 'PREPARING' || tabParam === 'ACCEPTED') {
+      setActiveTab('PREPARING');
+    } else if (tabParam === 'READY') {
+      setActiveTab('READY');
+    } else if (tabParam === 'COMPLETED') {
+      setActiveTab('COMPLETED');
+    } else if (tabParam === 'NEW') {
+      setActiveTab('NEW');
+    }
+  }, [window.location.search]);
+
   // SSE Realtime Updates Handler
   useEffect(() => {
     fetchOrders();
@@ -792,16 +818,14 @@ export const KitchenDisplay: React.FC = () => {
         return sortedActive.filter(o => o.status === 'ACCEPTED' || o.status === 'PREPARING');
       case 'READY':
         return sortedActive.filter(o => o.status === 'READY');
+      case 'COMPLETED':
+        return sortedActive.filter(o => o.status === 'COMPLETED');
       default:
         return [];
     }
   };
 
   const displayedOrders = filterOrdersByTab();
-
-  const handleScrollToStockRequests = () => {
-    navigate('/restaurant/inventory-requests');
-  };
 
   return (
     <div className="space-y-6 text-slate-900 dark:text-slate-100 relative max-w-7xl mx-auto p-4 select-none" style={{ fontFamily: "'Trebuchet MS', 'Inter', sans-serif" }}>
@@ -853,39 +877,34 @@ export const KitchenDisplay: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={() => navigate('/restaurant/inventory-requests')}
+            className="bg-emerald-650 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>CREATE REQUEST</span>
+          </button>
+          <button
+            onClick={() => navigate('/restaurant/suppliers?tab=requests')}
+            className="bg-purple-650 hover:bg-purple-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            <span>VIEW SOURCING REQUESTS</span>
+          </button>
+          <button
             onClick={playAlertSound}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5 cursor-pointer"
+            className="bg-slate-700 hover:bg-slate-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5 cursor-pointer"
           >
             <Bell className="w-3.5 h-3.5" />
             <span>BELL TEST</span>
           </button>
           <button
             onClick={handleSeedDummyOrders}
-            className="bg-blue-650 hover:bg-blue-500 text-white px-3.5 py-1 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="bg-blue-650 hover:bg-blue-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <span>SEED DATA</span>
           </button>
         </div>
       </div>
 
-      {/* SECTION 2: KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-        {[
-          { label: 'Active Orders', count: newCount, color: 'border-t-blue-500', action: () => setActiveTab('NEW') },
-          { label: 'Preparing Orders', count: preparingCount, color: 'border-t-amber-500', action: () => setActiveTab('PREPARING') },
-          { label: 'Ready Orders', count: readyCount, color: 'border-t-emerald-500', action: () => setActiveTab('READY') },
-          { label: 'Stock Requests', count: pendingStockRequestsCount, color: 'border-t-purple-500', action: handleScrollToStockRequests }
-        ].map((card, idx) => (
-          <button
-            key={idx}
-            onClick={card.action}
-            className={`p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 border-t-[3px] ${card.color} text-left transition-all duration-300 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_25px_-6px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 cursor-pointer w-full h-28 flex flex-col justify-between`}
-          >
-            <span className="text-[14px] font-semibold text-slate-500 uppercase tracking-wider">{card.label}</span>
-            <span className="text-3xl font-normal text-black dark:text-white block leading-none">{card.count}</span>
-          </button>
-        ))}
-      </div>
 
       {/* SECTION 3: Kitchen Orders Area */}
       <div className="space-y-4">
@@ -896,7 +915,8 @@ export const KitchenDisplay: React.FC = () => {
           {[
             { tabId: 'NEW', label: 'NEW', count: newCount },
             { tabId: 'PREPARING', label: 'PREPARING', count: preparingCount },
-            { tabId: 'READY', label: 'READY', count: readyCount }
+            { tabId: 'READY', label: 'READY', count: readyCount },
+            { tabId: 'COMPLETED', label: 'COMPLETED', count: completedCount }
           ].map(t => (
             <button
               key={t.tabId}
@@ -927,8 +947,28 @@ export const KitchenDisplay: React.FC = () => {
 
           {/* Rows */}
           {loading ? (
-            <div className="flex items-center justify-center min-h-[40vh] p-8">
-              <Loader2 className="w-8 h-8 animate-spin text-slate-855 dark:text-white" />
+            <div className="divide-y divide-slate-100 dark:divide-slate-750">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="grid grid-cols-[140px_130px_2.5fr_1.5fr_140px_160px] gap-4 p-4 items-center animate-pulse">
+                  <div className="space-y-2">
+                    <div className="h-4.5 w-20 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                    <div className="h-3.5 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                  </div>
+                  <div className="h-5 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 w-48 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                    <div className="h-4 w-36 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="h-3.5 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                    <div className="h-3.5 w-20 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                  </div>
+                  <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded-md"></div>
+                  <div className="text-right flex justify-end">
+                    <div className="h-9 w-28 bg-slate-200 dark:bg-slate-700 rounded-xl"></div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : displayedOrders.length === 0 ? (
             <div className="p-12 text-center text-slate-400 dark:text-slate-500 font-bold">

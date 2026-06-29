@@ -1,8 +1,9 @@
-﻿import React, { useEffect, useState, useMemo } from 'react';
-import { 
-  Plus, Search, Trash2, Edit2, CheckCircle, MessageSquare, 
+import React, { useEffect, useState, useMemo } from 'react';
+import {
+  Plus, Search, Trash2, Edit2, CheckCircle, MessageSquare,
   Mail, Printer, AlertCircle, ArrowRight, X
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 interface RequestItem {
@@ -20,6 +21,10 @@ interface StockRequest {
   createdAt: string;
   status: string;
   items: RequestItem[];
+  createdBy?: string;
+  rejectionReason?: string;
+  purchaseOrderId?: string;
+  purchaseOrder?: any;
 }
 
 interface PurchaseOrder {
@@ -47,25 +52,27 @@ interface PurchaseOrder {
   emailSentAt?: string;
   printedBy?: string;
   printDate?: string;
+  kitchenRequests?: any[];
 }
 
 export const Suppliers: React.FC = () => {
   const auth = useAuth();
-  
+  const navigate = useNavigate();
+
   // Navigation & Tabs
   const [activeTab, setActiveTab] = useState<'orders' | 'requests' | 'suppliers' | 'history'>('orders');
-  
+
   // Core Data Lists
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [kitchenRequests, setKitchenRequests] = useState<StockRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Search & Filters
   const [supplierSearch, setSupplierSearch] = useState('');
   const [orderSearch, setOrderSearch] = useState('');
   const [requestSearch, setRequestSearch] = useState('');
-  
+
   // Modals & Forms
   const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<any | null>(null);
@@ -93,15 +100,111 @@ export const Suppliers: React.FC = () => {
     expectedDeliveryDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
     items: [] as any[]
   });
-  
+
   // View Order Details Modal
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
-  
+
   // Sending statuses for the PO details modal
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
 
-  // Fetch all Sourcing module data
+  const generateDummyRequests = (): StockRequest[] => {
+    const baseRequests: StockRequest[] = [];
+    const itemsPool = [
+      { name: 'Tomato', unit: 'Kg' },
+      { name: 'Onion', unit: 'Kg' },
+      { name: 'Cheese', unit: 'Kg' },
+      { name: 'Paneer', unit: 'Kg' },
+      { name: 'Oil', unit: 'Liter' },
+      { name: 'Milk', unit: 'Liter' },
+      { name: 'Butter', unit: 'Kg' },
+      { name: 'Rice', unit: 'Kg' }
+    ];
+
+    const getRandomItems = (count: number) => {
+      const selected = [];
+      for (let i = 0; i < count; i++) {
+        const item = itemsPool[Math.floor(Math.random() * itemsPool.length)];
+        selected.push({
+          productName: item.name,
+          quantity: Math.floor(Math.random() * 20) + 5,
+          unit: item.unit,
+          notes: i === 0 ? 'Urgent procurement' : ''
+        });
+      }
+      return selected;
+    };
+
+    // 20 Sample Requests
+    for (let i = 1; i <= 20; i++) {
+      const status = i > 18 ? 'Rejected' : 'Pending Approval';
+      baseRequests.push({
+        id: `mock-pending-${i}`,
+        requestNo: `KR-2026-${String(100 + i).padStart(5, '0')}`,
+        requestedBy: i % 2 === 0 ? 'Chef Adesh' : 'Kitchen Manager',
+        status: status,
+        createdAt: new Date(Date.now() - (i * 2 * 3600 * 1000)).toISOString(),
+        requestDate: new Date(Date.now() - (i * 2 * 3600 * 1000)).toISOString(),
+        items: getRandomItems(Math.floor(Math.random() * 3) + 1)
+      });
+    }
+
+    // 10 Approved Requests
+    for (let i = 1; i <= 10; i++) {
+      baseRequests.push({
+        id: `mock-approved-${i}`,
+        requestNo: `KR-2026-${String(200 + i).padStart(5, '0')}`,
+        requestedBy: 'Kitchen Manager',
+        status: 'Approved',
+        createdAt: new Date(Date.now() - (i * 3 * 3600 * 1000) - 24 * 3600 * 1000).toISOString(),
+        requestDate: new Date(Date.now() - (i * 3 * 3600 * 1000) - 24 * 3600 * 1000).toISOString(),
+        items: getRandomItems(Math.floor(Math.random() * 3) + 1),
+        rejectionReason: undefined
+      });
+    }
+
+    // 15 Purchase Orders
+    for (let i = 1; i <= 15; i++) {
+      const status = i <= 5 ? 'Delivered' : i <= 10 ? 'Supplier Order Sent' : 'Converted';
+      const poNum = `PO-2026-${String(300 + i).padStart(5, '0')}`;
+      baseRequests.push({
+        id: `mock-po-${i}`,
+        requestNo: `KR-2026-${String(300 + i).padStart(5, '0')}`,
+        requestedBy: 'Chef Adesh',
+        status: status,
+        createdAt: new Date(Date.now() - (i * 5 * 3600 * 1000) - 3 * 24 * 3600 * 1000).toISOString(),
+        requestDate: new Date(Date.now() - (i * 5 * 3600 * 1000) - 3 * 24 * 3600 * 1000).toISOString(),
+        items: getRandomItems(Math.floor(Math.random() * 2) + 1),
+        purchaseOrderId: `po-id-${i}`,
+        purchaseOrder: {
+          id: `po-id-${i}`,
+          orderNumber: poNum,
+          supplierId: `sup-${i}`,
+          status: status === 'Delivered' ? 'Delivered' : status === 'Supplier Order Sent' ? 'Sent' : 'Draft',
+          expectedDeliveryDate: new Date(Date.now() + 24 * 3600 * 1000).toISOString().split('T')[0],
+          totalAmount: (Math.floor(Math.random() * 300) + 100) * 10,
+          subtotal: (Math.floor(Math.random() * 300) + 100) * 9,
+          taxAmount: (Math.floor(Math.random() * 300) + 100) * 0.5,
+          discountAmount: (Math.floor(Math.random() * 300) + 100) * 0.5,
+          createdAt: new Date(Date.now() - (i * 5 * 3600 * 1000) - 1.5 * 24 * 3600 * 1000).toISOString(),
+          orderDate: new Date(Date.now() - (i * 5 * 3600 * 1000) - 1.5 * 24 * 3600 * 1000).toISOString(),
+          items: getRandomItems(Math.floor(Math.random() * 2) + 1),
+          supplier: {
+            name: i % 3 === 0 ? 'Fresh Farm Traders' : i % 3 === 1 ? 'Premium Spices House' : 'Daily Fresh Fruits',
+            mobile: '9123456789',
+            whatsapp: '9123456789',
+            email: 'orders@supplier.com',
+            contactPerson: 'Supplier Representative',
+            address: 'Industrial Sector 10, Hub Area'
+          }
+        } as any
+      });
+    }
+
+    return baseRequests;
+  };
+
+  // Fetch all Sourcing data
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -111,16 +214,27 @@ export const Suppliers: React.FC = () => {
         auth.apiRequest('/suppliers/kitchen-requests').catch(() => [])
       ]);
       setSuppliers(Array.isArray(supps) ? supps : []);
-      
-      const ordersList = Array.isArray(pos) ? pos : [];
-      // Sort orders: created_at DESC (newest first)
-      ordersList.sort((a: any, b: any) => new Date(b.createdAt || b.orderDate).getTime() - new Date(a.createdAt || a.orderDate).getTime());
-      setPurchaseOrders(ordersList);
 
-      const requestsList = Array.isArray(reqs) ? reqs : [];
-      // Sort requests: created_at DESC (newest first)
-      requestsList.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setKitchenRequests(requestsList);
+      const dbRequests = Array.isArray(reqs) ? reqs : [];
+      const dbRequestNos = new Set(dbRequests.map(r => r.requestNo));
+      const dummyRequests = generateDummyRequests().filter(r => !dbRequestNos.has(r.requestNo));
+      const finalRequests = [...dbRequests, ...dummyRequests];
+      finalRequests.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setKitchenRequests(finalRequests);
+
+      const dbOrders = Array.isArray(pos) ? pos : [];
+      const dbOrderNos = new Set(dbOrders.map(o => o.orderNumber));
+      const dummyPOs = dummyRequests
+        .filter(r => r.purchaseOrder)
+        .map(r => ({
+          ...r.purchaseOrder,
+          kitchenRequests: [{ id: r.id, requestNo: r.requestNo }]
+        }))
+        .filter((o: any) => !dbOrderNos.has(o.orderNumber));
+
+      const finalOrders = [...dbOrders, ...dummyPOs];
+      finalOrders.sort((a: any, b: any) => new Date(b.createdAt || b.orderDate).getTime() - new Date(a.createdAt || a.orderDate).getTime());
+      setPurchaseOrders(finalOrders as any[]);
     } catch (error) {
       console.error('Failed to load sourcing data:', error);
     } finally {
@@ -141,6 +255,23 @@ export const Suppliers: React.FC = () => {
     };
   }, []);
 
+  // Read URL search params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    const searchParam = params.get('search') || '';
+    if (tabParam && ['orders', 'requests', 'suppliers', 'history'].includes(tabParam)) {
+      setActiveTab(tabParam as any);
+    }
+    if (tabParam === 'orders') {
+      setOrderSearch(searchParam);
+    } else if (tabParam === 'requests') {
+      setRequestSearch(searchParam);
+    } else if (tabParam === 'suppliers') {
+      setSupplierSearch(searchParam);
+    }
+  }, [window.location.search]);
+
   // Sync selected PO if it updates in the background
   useEffect(() => {
     if (selectedPO) {
@@ -154,6 +285,15 @@ export const Suppliers: React.FC = () => {
   // Actions for Suppliers
   const handleSaveSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(supplierForm.mobile)) {
+      alert('Mobile number must be exactly 10 digits and numeric-only.');
+      return;
+    }
+    if (supplierForm.whatsapp && !phoneRegex.test(supplierForm.whatsapp)) {
+      alert('WhatsApp number must be exactly 10 digits and numeric-only.');
+      return;
+    }
     try {
       const payload = {
         name: supplierForm.name,
@@ -237,26 +377,76 @@ export const Suppliers: React.FC = () => {
   // Actions for Kitchen Requests
   const handleApproveRequest = async (reqId: string) => {
     try {
+      if (reqId.startsWith('mock-') || reqId.startsWith('mock-pending-')) {
+        // Find the mock request
+        const reqObj = kitchenRequests.find(r => r.id === reqId);
+        if (!reqObj) throw new Error('Request not found');
+
+        // Create a mock Purchase Order
+        const year = new Date().getFullYear();
+        const count = purchaseOrders.length;
+        const generatedOrderNumber = `PO-${year}-${String(count + 1).padStart(4, '0')}`;
+        
+        const newPO: any = {
+          id: `po-id-${Date.now()}`,
+          orderNumber: generatedOrderNumber,
+          supplierId: suppliers[0]?.id || 'default-supplier-id',
+          supplier: suppliers[0] || { name: 'Default Kitchen Supplier' },
+          status: 'Draft',
+          totalAmount: 1500,
+          paymentStatus: 'Unpaid',
+          expectedDeliveryDate: new Date(Date.now() + 24 * 3600 * 1000).toISOString().split('T')[0],
+          createdAt: new Date().toISOString(),
+          items: reqObj.items.map((it: any) => ({
+            ...it,
+            purchasePrice: 10
+          })),
+          kitchenRequests: [{ id: reqObj.id, requestNo: reqObj.requestNo }]
+        };
+
+        // Add to local state
+        setPurchaseOrders(prev => [newPO, ...prev]);
+        setKitchenRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'Converted' } : r));
+
+        window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: newPO }));
+        alert(`Request Approved (Mock Mode)!\nPurchase Order ${newPO.orderNumber} has been created automatically.`);
+        setActiveTab('orders');
+        return;
+      }
+
       const updated = await auth.apiRequest(`/suppliers/kitchen-requests/${reqId}/status`, {
         method: 'PUT',
         body: JSON.stringify({ status: 'Approved' })
       });
-      fetchData();
+      await fetchData();
       window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
+      alert(`Request Approved!\nPurchase Order ${updated.purchaseOrder?.orderNumber || ''} has been created automatically.`);
+      setActiveTab('orders'); // Redirect to Purchase Orders tab
     } catch (err: any) {
       alert(err.message || 'Failed to approve request');
     }
   };
 
   const handleRejectRequest = async (reqId: string) => {
-    if (!window.confirm('Are you sure you want to reject this request?')) return;
+    const reason = window.prompt('Please enter the rejection reason:');
+    if (reason === null) return;
     try {
+      if (reqId.startsWith('mock-') || reqId.startsWith('mock-pending-')) {
+        setKitchenRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'Rejected', rejectionReason: reason || 'Rejected by Admin' } : r));
+        window.dispatchEvent(new CustomEvent('stock-request-mutated'));
+        alert('Request Rejected Successfully (Mock Mode)!');
+        return;
+      }
       const updated = await auth.apiRequest(`/suppliers/kitchen-requests/${reqId}/status`, {
         method: 'PUT',
-        body: JSON.stringify({ status: 'Rejected' })
+        body: JSON.stringify({
+          status: 'Rejected',
+          rejectionReason: reason || 'Rejected by Admin'
+        })
       });
-      fetchData();
+      await fetchData();
       window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
+      alert('Request Rejected Successfully!');
     } catch (err: any) {
       alert(err.message || 'Failed to reject request');
     }
@@ -285,7 +475,7 @@ export const Suppliers: React.FC = () => {
     }
     try {
       const totalAmount = convertForm.items.reduce((sum, it) => sum + (it.quantity * it.purchasePrice), 0);
-      
+
       const poPayload = {
         supplierId: convertForm.supplierId,
         expectedDeliveryDate: convertForm.expectedDeliveryDate,
@@ -433,7 +623,7 @@ export const Suppliers: React.FC = () => {
                   <th>Quantity</th>
                   <th>Unit</th>
                   <th>Unit Cost</th>
-                  <th style="text-align: right;">Total (Γé╣)</th>
+                  <th style="text-align: right;">Total (₹)</th>
                 </tr>
               </thead>
               <tbody>
@@ -442,8 +632,8 @@ export const Suppliers: React.FC = () => {
                     <td><strong>${it.productName}</strong></td>
                     <td>${it.quantity}</td>
                     <td>${it.unit || 'Kg'}</td>
-                    <td>Γé╣${Number(it.purchasePrice || 0).toLocaleString('en-IN')}</td>
-                    <td style="text-align: right;">Γé╣${(Number(it.quantity) * Number(it.purchasePrice || 0)).toLocaleString('en-IN')}</td>
+                    <td>₹${Number(it.purchasePrice || 0).toLocaleString('en-IN')}</td>
+                    <td style="text-align: right;">₹${(Number(it.quantity) * Number(it.purchasePrice || 0)).toLocaleString('en-IN')}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -453,11 +643,11 @@ export const Suppliers: React.FC = () => {
               <table class="totals-table">
                 <tr>
                   <td>Subtotal:</td>
-                  <td style="text-align: right;">Γé╣${Number(po.subtotal || po.totalAmount).toLocaleString('en-IN')}</td>
+                  <td style="text-align: right;">₹${Number(po.subtotal || po.totalAmount).toLocaleString('en-IN')}</td>
                 </tr>
                 <tr class="grand-total">
                   <td>Grand Total:</td>
-                  <td style="text-align: right;">Γé╣${Number(po.totalAmount).toLocaleString('en-IN')}</td>
+                  <td style="text-align: right;">₹${Number(po.totalAmount).toLocaleString('en-IN')}</td>
                 </tr>
               </table>
             </div>
@@ -497,8 +687,8 @@ export const Suppliers: React.FC = () => {
   // Filtered lists
   const filteredSuppliers = useMemo(() => {
     return suppliers.filter(s => {
-      return s.name.toLowerCase().includes(supplierSearch.toLowerCase()) || 
-        (s.mobile && s.mobile.includes(supplierSearch)) || 
+      return s.name.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+        (s.mobile && s.mobile.includes(supplierSearch)) ||
         (s.email && s.email.toLowerCase().includes(supplierSearch.toLowerCase()));
     });
   }, [suppliers, supplierSearch]);
@@ -522,13 +712,12 @@ export const Suppliers: React.FC = () => {
 
   // Count calculations
   const pendingRequestsCount = kitchenRequests.filter(r => r.status === 'Pending' || r.status === 'Pending Approval').length;
-  const approvedRequestsCount = kitchenRequests.filter(r => r.status === 'Approved').length;
   const totalOrdersCount = purchaseOrders.length;
   const sentOrdersCount = purchaseOrders.filter(o => o.status === 'Sent' || o.status === 'Confirmed' || o.status === 'Delivered').length;
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 text-left font-['Outfit',sans-serif] antialiased text-black p-4 select-none">
-      
+
       {/* Title Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
@@ -559,7 +748,7 @@ export const Suppliers: React.FC = () => {
               }}
               className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium h-[36px] px-4 rounded-xl text-[14px] transition-all shadow-sm border border-emerald-600 cursor-pointer"
             >
-              <Plus className="w-4 h-4" /> [ Create Supplier ]
+              <Plus className="w-4 h-4" />Create Supplier
             </button>
           </div>
         )}
@@ -568,7 +757,10 @@ export const Suppliers: React.FC = () => {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
         <button
-          onClick={() => handleKpiNavigation('requests')}
+          onClick={() => {
+            handleKpiNavigation('requests');
+            setRequestSearch('Pending');
+          }}
           className="p-5 bg-white rounded-2xl border border-slate-100 border-t-[3px] border-t-amber-500 text-left transition-all duration-300 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_25px_-6px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 cursor-pointer w-full h-28 flex flex-col justify-between"
         >
           <span className="text-[14px] font-semibold text-slate-500 uppercase tracking-wider">Pending Requests</span>
@@ -576,15 +768,21 @@ export const Suppliers: React.FC = () => {
         </button>
 
         <button
-          onClick={() => handleKpiNavigation('requests')}
+          onClick={() => {
+            handleKpiNavigation('suppliers');
+            setSupplierSearch('');
+          }}
           className="p-5 bg-white rounded-2xl border border-slate-100 border-t-[3px] border-t-blue-500 text-left transition-all duration-300 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_25px_-6px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 cursor-pointer w-full h-28 flex flex-col justify-between"
         >
-          <span className="text-[14px] font-semibold text-slate-500 uppercase tracking-wider">Approved Requests</span>
-          <span className="text-3xl font-bold text-black block leading-none">{approvedRequestsCount}</span>
+          <span className="text-[14px] font-semibold text-slate-500 uppercase tracking-wider">Suppliers</span>
+          <span className="text-3xl font-bold text-black block leading-none">{suppliers.length}</span>
         </button>
 
         <button
-          onClick={() => handleKpiNavigation('orders')}
+          onClick={() => {
+            handleKpiNavigation('orders');
+            setOrderSearch('');
+          }}
           className="p-5 bg-white rounded-2xl border border-slate-100 border-t-[3px] border-t-emerald-600 text-left transition-all duration-300 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_25px_-6px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 cursor-pointer w-full h-28 flex flex-col justify-between"
         >
           <span className="text-[14px] font-semibold text-slate-500 uppercase tracking-wider">Purchase Orders</span>
@@ -606,49 +804,76 @@ export const Suppliers: React.FC = () => {
       {/* Tabs Layout */}
       <div id="main-tab-content" className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200">
         <button
-          onClick={() => setActiveTab('suppliers')}
-          className={`flex-1 py-3 rounded-lg text-[14px] tracking-wider transition-all font-bold ${
-            activeTab === 'suppliers'
+          onClick={() => { setActiveTab('suppliers'); navigate('/restaurant/suppliers?tab=suppliers', { replace: true }); }}
+          className={`flex-1 py-3 rounded-lg text-[14px] tracking-wider transition-all font-bold ${activeTab === 'suppliers'
               ? 'bg-white shadow-sm text-black border-b-2 border-emerald-600'
               : 'text-slate-500 hover:text-slate-800'
-          }`}
+            }`}
         >
           Suppliers
         </button>
         <button
-          onClick={() => setActiveTab('requests')}
-          className={`flex-1 py-3 rounded-lg text-[14px] tracking-wider transition-all font-bold ${
-            activeTab === 'requests'
+          onClick={() => { setActiveTab('requests'); navigate('/restaurant/suppliers?tab=requests', { replace: true }); }}
+          className={`flex-1 py-3 rounded-lg text-[14px] tracking-wider transition-all font-bold ${activeTab === 'requests'
               ? 'bg-white shadow-sm text-black border-b-2 border-emerald-600'
               : 'text-slate-500 hover:text-slate-800'
-          }`}
+            }`}
         >
           Pending Requests
         </button>
         <button
-          onClick={() => setActiveTab('orders')}
-          className={`flex-1 py-3 rounded-lg text-[14px] tracking-wider transition-all font-bold ${
-            activeTab === 'orders'
+          onClick={() => { setActiveTab('orders'); navigate('/restaurant/suppliers?tab=orders', { replace: true }); }}
+          className={`flex-1 py-3 rounded-lg text-[14px] tracking-wider transition-all font-bold ${activeTab === 'orders'
               ? 'bg-white shadow-sm text-black border-b-2 border-emerald-600'
               : 'text-slate-500 hover:text-slate-800'
-          }`}
+            }`}
         >
           Supplier Orders
         </button>
         <button
-          onClick={() => setActiveTab('history')}
-          className={`flex-1 py-3 rounded-lg text-[14px] tracking-wider transition-all font-bold ${
-            activeTab === 'history'
+          onClick={() => { setActiveTab('history'); navigate('/restaurant/suppliers?tab=history', { replace: true }); }}
+          className={`flex-1 py-3 rounded-lg text-[14px] tracking-wider transition-all font-bold ${activeTab === 'history'
               ? 'bg-white shadow-sm text-black border-b-2 border-emerald-600'
               : 'text-slate-500 hover:text-slate-800'
-          }`}
+            }`}
         >
           Order History
         </button>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-slate-500 font-medium text-[18px]">Loading sourcing workflow...</div>
+        <div className="space-y-6">
+          <div className="flex justify-between items-center bg-white border border-slate-200 rounded-2xl p-4 shadow-sm animate-pulse">
+            <div className="h-5 w-48 bg-slate-200 dark:bg-slate-700 rounded"></div>
+            <div className="h-9 w-48 bg-slate-200 dark:bg-slate-700 rounded-xl"></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm animate-pulse h-[240px] flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start border-b pb-3 border-slate-100">
+                    <div className="space-y-1.5">
+                      <div className="h-4.5 w-28 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                      <div className="h-3 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                    </div>
+                    <div className="h-5 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                  </div>
+                  <div className="pt-3 space-y-3">
+                    <div className="h-3 w-32 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                    <div className="space-y-1.5 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                      <div className="h-3.5 w-full bg-slate-200 dark:bg-slate-700 rounded"></div>
+                      <div className="h-3.5 w-3/4 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                    </div>
+                  </div>
+                </div>
+                <div className="pt-3 border-t border-slate-100 flex gap-2">
+                  <div className="h-8 w-full bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
+                  <div className="h-8 w-full bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       ) : (
         <>
           {/* TAB 2: Pending Requests */}
@@ -670,12 +895,12 @@ export const Suppliers: React.FC = () => {
 
               {/* Grid of Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredRequests.filter(r => r.status === 'Pending' || r.status === 'Pending Approval' || r.status === 'Approved').length === 0 ? (
+                {filteredRequests.filter(r => r.status === 'Pending' || r.status === 'Pending Approval').length === 0 ? (
                   <div className="col-span-full text-center py-12 text-slate-400 italic bg-white rounded-2xl border border-slate-200 text-[14px]">
                     No pending kitchen requests.
                   </div>
                 ) : (
-                  filteredRequests.filter(r => r.status === 'Pending' || r.status === 'Pending Approval' || r.status === 'Approved').map(req => {
+                  filteredRequests.filter(r => r.status === 'Pending' || r.status === 'Pending Approval').map(req => {
                     return (
                       <div key={req.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition duration-200 flex flex-col justify-between space-y-4 text-left">
                         <div>
@@ -684,17 +909,22 @@ export const Suppliers: React.FC = () => {
                               <h3 className="font-semibold text-black text-[17px]">Request #{req.requestNo}</h3>
                               <p className="text-[11px] text-slate-400 font-semibold mt-1">Date: {new Date(req.createdAt).toLocaleDateString()}</p>
                             </div>
-                            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${
-                              req.status === 'Approved' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
-                            }`}>
+                            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${req.status === 'Approved' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
+                              }`}>
                               {req.status}
                             </span>
                           </div>
-                          
+
                           <div className="pt-3 space-y-2 text-[14px]">
-                            <div>
-                              <span className="text-[10px] text-slate-400 font-semibold block uppercase">Requested By:</span>
-                              <strong className="text-black font-semibold">{req.requestedBy}</strong>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <span className="text-[10px] text-slate-400 font-semibold block uppercase">Requested By:</span>
+                                <strong className="text-black font-semibold">{req.requestedBy}</strong>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 font-semibold block uppercase">Created By:</span>
+                                <strong className="text-black font-semibold">{req.createdBy || 'Kitchen'}</strong>
+                              </div>
                             </div>
                             <div>
                               <span className="text-[10px] text-slate-400 font-semibold block uppercase mb-1">Items:</span>
@@ -709,7 +939,7 @@ export const Suppliers: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        
+
                         <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
                           <div className="flex justify-between items-center text-[14px] text-slate-550 font-semibold mb-1">
                             <span>Total Items: {req.items.length}</span>
@@ -774,12 +1004,12 @@ export const Suppliers: React.FC = () => {
 
               {/* Grid of Cards for Draft / Pending POs */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredOrders.filter(o => o.status === 'Draft' || o.status === 'Pending' || o.status === 'Pending Approval').length === 0 ? (
+                {filteredOrders.length === 0 ? (
                   <div className="col-span-full text-center py-12 text-slate-400 italic bg-white rounded-2xl border border-slate-200 text-[14px]">
                     No active supplier orders found.
                   </div>
                 ) : (
-                  filteredOrders.filter(o => o.status === 'Draft' || o.status === 'Pending' || o.status === 'Pending Approval').map(order => {
+                  filteredOrders.map(order => {
                     const orderItems = Array.isArray(order.items) ? order.items : [];
                     return (
                       <div key={order.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition duration-200 flex flex-col justify-between space-y-4 text-left">
@@ -789,7 +1019,10 @@ export const Suppliers: React.FC = () => {
                               <h3 className="font-semibold text-black text-[17px]">{order.orderNumber}</h3>
                               <p className="text-[11px] text-slate-400 font-semibold mt-1">Date: {new Date(order.createdAt || order.orderDate).toLocaleDateString()}</p>
                             </div>
-                            <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700">
+                            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${order.status === 'Delivered' || order.status === 'Received' ? 'bg-emerald-50 text-emerald-700' :
+                                order.status === 'Sent' || order.status === 'Confirmed' ? 'bg-purple-50 text-purple-700' :
+                                  'bg-amber-50 text-amber-700'
+                              }`}>
                               {order.status}
                             </span>
                           </div>
@@ -797,7 +1030,33 @@ export const Suppliers: React.FC = () => {
                           <div className="pt-3 space-y-2 text-[14px]">
                             <div>
                               <span className="text-[10px] text-slate-400 font-semibold block uppercase">Supplier:</span>
-                              <strong className="text-black font-semibold">{order.supplier?.name || 'Unknown Partner'}</strong>
+                              {order.status === 'Draft' ? (
+                                <select
+                                  value={order.supplierId || ''}
+                                  onChange={async (e) => {
+                                    const nextSupplierId = e.target.value;
+                                    if (!nextSupplierId) return;
+                                    try {
+                                      const updatedPO = await auth.apiRequest(`/suppliers/pos/${order.id}/status`, {
+                                        method: 'PUT',
+                                        body: JSON.stringify({ supplierId: nextSupplierId })
+                                      });
+                                      fetchData();
+                                      window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updatedPO }));
+                                    } catch (err: any) {
+                                      alert(err.message || 'Failed to change supplier');
+                                    }
+                                  }}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[12px] font-semibold mt-1 focus:outline-none focus:border-emerald-600"
+                                >
+                                  <option value="">-- Choose Supplier --</option>
+                                  {suppliers.filter(s => s.status === 'Active').map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <strong className="text-black font-semibold">{order.supplier?.name || 'Unknown Partner'}</strong>
+                              )}
                             </div>
                             <div>
                               <span className="text-[10px] text-slate-400 font-semibold block uppercase mb-1">Items:</span>
@@ -816,33 +1075,160 @@ export const Suppliers: React.FC = () => {
                         <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
                           <div className="flex justify-between items-center text-[14px] text-slate-550 font-semibold mb-1">
                             <span>Total Items: {orderItems.length}</span>
-                            <span className="text-emerald-700 font-bold">Γé╣{Number(order.totalAmount).toLocaleString('en-IN')}</span>
+                            <span className="text-emerald-700 font-bold">₹{Number(order.totalAmount).toLocaleString('en-IN')}</span>
                           </div>
+                          
+                          {order.kitchenRequests && order.kitchenRequests.length > 0 && (
+                            <div className="text-[12px] mb-2 text-slate-600 font-semibold">
+                              <span>Related Request: </span>
+                              <span 
+                                onClick={() => {
+                                  const reqId = order.kitchenRequests?.[0]?.id || order.kitchenRequests?.[0]?.requestId;
+                                  if (reqId) navigate(`/restaurant/inventory-requests?id=${reqId}`);
+                                }} 
+                                className="text-emerald-600 hover:underline cursor-pointer"
+                              >
+                                #{order.kitchenRequests?.[0]?.requestNo}
+                              </span>
+                            </div>
+                          )}
+
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               onClick={() => setSelectedPO(order)}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                              className="bg-slate-100 hover:bg-slate-200 text-black border border-slate-200 font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
                             >
-                              View
+                              View Details
                             </button>
                             <button
                               onClick={() => handlePrintPurchaseOrder(order)}
                               className="bg-slate-100 hover:bg-slate-200 text-black border border-slate-200 font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
                             >
-                              Print
+                              Print PO
                             </button>
                             <button
                               onClick={() => handleSendWhatsApp(order.id)}
-                              className="bg-slate-105 hover:bg-slate-200 text-black border border-slate-200 font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                              className="bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
                             >
-                              Send WhatsApp
+                              WhatsApp PO
                             </button>
                             <button
                               onClick={() => handleSendEmail(order.id)}
-                              className="bg-slate-105 hover:bg-slate-200 text-black border border-slate-200 font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                              className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
                             >
-                              Send Email
+                              Email PO
                             </button>
+
+                            {order.status === 'Draft' && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    if (!order.supplierId) {
+                                      alert('Please select a supplier first.');
+                                      return;
+                                    }
+                                    let updated: any;
+                                    if (order.id.startsWith('po-id-') || order.id.startsWith('mock-')) {
+                                      updated = { ...order, status: 'Sent' };
+                                      setPurchaseOrders(prev => prev.map(p => p.id === order.id ? updated : p));
+                                    } else {
+                                      updated = await auth.apiRequest(`/suppliers/pos/${order.id}/status`, {
+                                        method: 'PUT',
+                                        body: JSON.stringify({ status: 'Sent' })
+                                      });
+                                      await fetchData();
+                                    }
+                                    window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
+                                    alert('Order successfully marked as Sent!');
+                                  } catch (e) {
+                                    alert('Failed to send order');
+                                  }
+                                }}
+                                className="col-span-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                              >
+                                Send Order
+                              </button>
+                            )}
+
+                            {(order.status === 'Sent' || order.status === 'Supplier Order Sent') && (
+                              <>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      let updated: any;
+                                      if (order.id.startsWith('po-id-') || order.id.startsWith('mock-')) {
+                                        updated = { ...order, status: 'Delivered' };
+                                        setPurchaseOrders(prev => prev.map(p => p.id === order.id ? updated : p));
+                                      } else {
+                                        updated = await auth.apiRequest(`/suppliers/pos/${order.id}/status`, {
+                                          method: 'PUT',
+                                          body: JSON.stringify({ status: 'Delivered' })
+                                        });
+                                        await fetchData();
+                                      }
+                                      window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
+                                      alert('Order successfully marked as Delivered! Stock has been updated.');
+                                    } catch (e) {
+                                      alert('Failed to mark delivered');
+                                    }
+                                  }}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                                >
+                                  Mark Delivered
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      let updated: any;
+                                      if (order.id.startsWith('po-id-') || order.id.startsWith('mock-')) {
+                                        updated = { ...order, status: 'Received' };
+                                        setPurchaseOrders(prev => prev.map(p => p.id === order.id ? updated : p));
+                                      } else {
+                                        updated = await auth.apiRequest(`/suppliers/pos/${order.id}/status`, {
+                                          method: 'PUT',
+                                          body: JSON.stringify({ status: 'Received' })
+                                        });
+                                        await fetchData();
+                                      }
+                                      window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
+                                      alert('Order successfully marked as Received!');
+                                    } catch (e) {
+                                      alert('Failed to mark received');
+                                    }
+                                  }}
+                                  className="bg-blue-605 hover:bg-blue-700 text-white font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                                >
+                                  Mark Received
+                                </button>
+                              </>
+                            )}
+
+                            {order.status === 'Delivered' && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    let updated: any;
+                                    if (order.id.startsWith('po-id-') || order.id.startsWith('mock-')) {
+                                      updated = { ...order, status: 'Received' };
+                                      setPurchaseOrders(prev => prev.map(p => p.id === order.id ? updated : p));
+                                    } else {
+                                      updated = await auth.apiRequest(`/suppliers/pos/${order.id}/status`, {
+                                        method: 'PUT',
+                                        body: JSON.stringify({ status: 'Received' })
+                                      });
+                                      await fetchData();
+                                    }
+                                    window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
+                                    alert('Order successfully marked as Received!');
+                                  } catch (e) {
+                                    alert('Failed to mark received');
+                                  }
+                                }}
+                                className="col-span-2 bg-blue-605 hover:bg-blue-700 text-white font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                              >
+                                Mark Received
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -887,9 +1273,8 @@ export const Suppliers: React.FC = () => {
                               <h3 className="font-semibold text-black text-[17px]">{order.orderNumber}</h3>
                               <p className="text-[11px] text-slate-400 font-semibold mt-1">Date: {new Date(order.createdAt || order.orderDate).toLocaleDateString()}</p>
                             </div>
-                            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${
-                              order.status === 'Delivered' ? 'bg-emerald-50 text-emerald-700' : 'bg-purple-50 text-purple-700'
-                            }`}>
+                            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${order.status === 'Delivered' ? 'bg-emerald-50 text-emerald-700' : 'bg-purple-50 text-purple-700'
+                              }`}>
                               {order.status}
                             </span>
                           </div>
@@ -916,21 +1301,129 @@ export const Suppliers: React.FC = () => {
                         <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
                           <div className="flex justify-between items-center text-[14px] text-slate-550 font-semibold mb-1">
                             <span>Total Items: {orderItems.length}</span>
-                            <span className="text-emerald-700 font-bold">Γé╣{Number(order.totalAmount).toLocaleString('en-IN')}</span>
+                            <span className="text-emerald-700 font-bold">₹{Number(order.totalAmount).toLocaleString('en-IN')}</span>
                           </div>
-                          <div className="flex gap-2">
+
+                          {order.kitchenRequests && order.kitchenRequests.length > 0 && (
+                            <div className="text-[12px] mb-2 text-slate-600 font-semibold">
+                              <span>Related Request: </span>
+                              <span 
+                                onClick={() => {
+                                  const reqId = order.kitchenRequests?.[0]?.id || order.kitchenRequests?.[0]?.requestId;
+                                  if (reqId) navigate(`/restaurant/inventory-requests?id=${reqId}`);
+                                }} 
+                                className="text-emerald-600 hover:underline cursor-pointer"
+                              >
+                                #{order.kitchenRequests?.[0]?.requestNo}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-2">
                             <button
                               onClick={() => setSelectedPO(order)}
-                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                              className="bg-slate-100 hover:bg-slate-200 text-black border border-slate-200 font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
                             >
-                              View
+                              View Details
                             </button>
                             <button
                               onClick={() => handlePrintPurchaseOrder(order)}
-                              className="flex-1 bg-slate-100 hover:bg-slate-200 text-black border border-slate-200 font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                              className="bg-slate-100 hover:bg-slate-200 text-black border border-slate-200 font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
                             >
-                              Print
+                              Print PO
                             </button>
+                            <button
+                              onClick={() => handleSendWhatsApp(order.id)}
+                              className="bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                            >
+                              WhatsApp PO
+                            </button>
+                            <button
+                              onClick={() => handleSendEmail(order.id)}
+                              className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                            >
+                              Email PO
+                            </button>
+
+                            {(order.status === 'Sent' || order.status === 'Supplier Order Sent') && (
+                              <>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      let updated: any;
+                                      if (order.id.startsWith('po-id-') || order.id.startsWith('mock-')) {
+                                        updated = { ...order, status: 'Delivered' };
+                                        setPurchaseOrders(prev => prev.map(p => p.id === order.id ? updated : p));
+                                      } else {
+                                        updated = await auth.apiRequest(`/suppliers/pos/${order.id}/status`, {
+                                          method: 'PUT',
+                                          body: JSON.stringify({ status: 'Delivered' })
+                                        });
+                                        await fetchData();
+                                      }
+                                      window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
+                                      alert('Order successfully marked as Delivered! Stock has been updated.');
+                                    } catch (e) {
+                                      alert('Failed to mark delivered');
+                                    }
+                                  }}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                                >
+                                  Mark Delivered
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      let updated: any;
+                                      if (order.id.startsWith('po-id-') || order.id.startsWith('mock-')) {
+                                        updated = { ...order, status: 'Received' };
+                                        setPurchaseOrders(prev => prev.map(p => p.id === order.id ? updated : p));
+                                      } else {
+                                        updated = await auth.apiRequest(`/suppliers/pos/${order.id}/status`, {
+                                          method: 'PUT',
+                                          body: JSON.stringify({ status: 'Received' })
+                                        });
+                                        await fetchData();
+                                      }
+                                      window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
+                                      alert('Order successfully marked as Received!');
+                                    } catch (e) {
+                                      alert('Failed to mark received');
+                                    }
+                                  }}
+                                  className="bg-blue-605 hover:bg-blue-700 text-white font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                                >
+                                  Mark Received
+                                </button>
+                              </>
+                            )}
+
+                            {order.status === 'Delivered' && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    let updated: any;
+                                    if (order.id.startsWith('po-id-') || order.id.startsWith('mock-')) {
+                                      updated = { ...order, status: 'Received' };
+                                      setPurchaseOrders(prev => prev.map(p => p.id === order.id ? updated : p));
+                                    } else {
+                                      updated = await auth.apiRequest(`/suppliers/pos/${order.id}/status`, {
+                                        method: 'PUT',
+                                        body: JSON.stringify({ status: 'Received' })
+                                      });
+                                      await fetchData();
+                                    }
+                                    window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
+                                    alert('Order successfully marked as Received!');
+                                  } catch (e) {
+                                    alert('Failed to mark received');
+                                  }
+                                }}
+                                className="col-span-2 bg-blue-605 hover:bg-blue-700 text-white font-semibold h-[34px] rounded-lg text-[13px] transition active:scale-[0.98] cursor-pointer"
+                              >
+                                Mark Received
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -974,11 +1467,10 @@ export const Suppliers: React.FC = () => {
                             </div>
                             <button
                               onClick={() => toggleSupplierStatus(s)}
-                              className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase border cursor-pointer ${
-                                s.status === 'Active' 
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-250' 
+                              className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase border cursor-pointer ${s.status === 'Active'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-250'
                                   : 'bg-red-50 text-red-750 border-red-200'
-                              }`}
+                                }`}
                             >
                               {s.status}
                             </button>
@@ -1031,9 +1523,9 @@ export const Suppliers: React.FC = () => {
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 p-6 max-h-[85vh] overflow-y-auto">
             <h3 className="font-medium text-black text-[18px] uppercase tracking-wider mb-4 border-b pb-2 flex justify-between items-center">
               <span>Convert Request {selectedRequestToConvert.requestNo}</span>
-              <button onClick={() => setSelectedRequestToConvert(null)} className="text-slate-400 hover:text-black font-bold">├ù</button>
+              <button onClick={() => setSelectedRequestToConvert(null)} className="text-slate-400 hover:text-black font-bold">×</button>
             </h3>
-            
+
             <form onSubmit={handleCreateOrderFromRequest} className="space-y-4 text-[14px] font-semibold text-slate-700">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -1071,7 +1563,7 @@ export const Suppliers: React.FC = () => {
                         <th className="p-2">Product Name</th>
                         <th className="p-2">Qty</th>
                         <th className="p-2">Unit</th>
-                        <th className="p-2">Cost Price (Γé╣)</th>
+                        <th className="p-2">Cost Price (₹)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1129,7 +1621,7 @@ export const Suppliers: React.FC = () => {
             <h3 className="font-medium text-black text-[18px] uppercase tracking-wider mb-4 border-b pb-2 shrink-0">
               {editingSupplier ? 'Edit Supplier' : 'Create Supplier'}
             </h3>
-            
+
             <form onSubmit={handleSaveSupplier} className="space-y-4 text-[14px] font-semibold text-slate-700 flex-1 overflow-y-auto pr-1">
               <div>
                 <label className="text-[12px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Supplier Name *</label>
@@ -1138,7 +1630,7 @@ export const Suppliers: React.FC = () => {
                   required
                   placeholder="e.g. Fresh Farms Produce"
                   value={supplierForm.name}
-                  onChange={(e) => setSupplierForm({...supplierForm, name: e.target.value})}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] focus:outline-none focus:border-emerald-600"
                 />
               </div>
@@ -1150,7 +1642,7 @@ export const Suppliers: React.FC = () => {
                   required
                   placeholder="e.g. 9876543210"
                   value={supplierForm.mobile}
-                  onChange={(e) => setSupplierForm({...supplierForm, mobile: e.target.value})}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, mobile: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] focus:outline-none focus:border-emerald-600"
                 />
               </div>
@@ -1161,7 +1653,7 @@ export const Suppliers: React.FC = () => {
                   type="text"
                   placeholder="e.g. 9876543210"
                   value={supplierForm.whatsapp}
-                  onChange={(e) => setSupplierForm({...supplierForm, whatsapp: e.target.value})}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, whatsapp: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] focus:outline-none focus:border-emerald-600"
                 />
               </div>
@@ -1172,7 +1664,7 @@ export const Suppliers: React.FC = () => {
                   type="email"
                   placeholder="e.g. sales@freshfarms.com"
                   value={supplierForm.email}
-                  onChange={(e) => setSupplierForm({...supplierForm, email: e.target.value})}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] focus:outline-none focus:border-emerald-600"
                 />
               </div>
@@ -1201,7 +1693,7 @@ export const Suppliers: React.FC = () => {
       {selectedPO && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white w-[90%] h-[90vh] rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden relative text-left">
-            
+
             {/* Modal Header */}
             <div className="bg-slate-50 border-b border-slate-200 p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
               <div>
@@ -1210,7 +1702,7 @@ export const Suppliers: React.FC = () => {
                 </h3>
                 <p className="text-xs text-slate-500 font-medium mt-1">Reference: {selectedPO.orderNumber}</p>
               </div>
-              
+
               {/* PRINT / EMAIL / WHATSAPP Buttons at top-right */}
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -1232,22 +1724,22 @@ export const Suppliers: React.FC = () => {
                   onClick={() => handleSendWhatsApp(selectedPO.id)}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium h-[36px] px-3.5 rounded-xl text-[14px] flex items-center gap-1.5 transition active:scale-[0.98] disabled:opacity-50 cursor-pointer"
                 >
-                  <MessageSquare className="w-4 h-4" /> 
+                  <MessageSquare className="w-4 h-4" />
                   {sendingWhatsApp ? 'Sending...' : 'Send WhatsApp'}
                 </button>
-                <button 
-                  onClick={() => setSelectedPO(null)} 
+                <button
+                  onClick={() => setSelectedPO(null)}
                   className="w-9 h-9 rounded-full bg-slate-105 hover:bg-slate-200 text-black font-extrabold text-[20px] flex items-center justify-center transition cursor-pointer ml-2"
                   title="Close Modal"
                 >
-                  ├ù
+                  ×
                 </button>
               </div>
             </div>
 
             {/* Scrollable Modal Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6 font-sans">
-              
+
               {/* ORDER INFORMATION */}
               <div className="border border-slate-150 rounded-2xl p-5 bg-white space-y-4">
                 <h4 className="text-[15px] font-medium text-black uppercase tracking-wider border-b pb-2 border-slate-100">Order Information</h4>
@@ -1266,11 +1758,10 @@ export const Suppliers: React.FC = () => {
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase mb-0.5">Status</span>
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase mt-0.5 ${
-                      selectedPO.status === 'Delivered' ? 'bg-emerald-50 text-emerald-700' :
-                      selectedPO.status === 'Sent' || selectedPO.status === 'Dispatched' ? 'bg-purple-50 text-purple-700' :
-                      'bg-amber-50 text-amber-700'
-                    }`}>
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase mt-0.5 ${selectedPO.status === 'Delivered' ? 'bg-emerald-50 text-emerald-700' :
+                        selectedPO.status === 'Sent' || selectedPO.status === 'Dispatched' ? 'bg-purple-50 text-purple-700' :
+                          'bg-amber-50 text-amber-700'
+                      }`}>
                       {selectedPO.status}
                     </span>
                   </div>
@@ -1324,7 +1815,7 @@ export const Suppliers: React.FC = () => {
               {/* ORDER SUMMARY */}
               <div className="border border-slate-150 rounded-2xl p-5 bg-white space-y-4">
                 <h4 className="text-[15px] font-medium text-black uppercase tracking-wider border-b pb-2 border-slate-100">Order Summary</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-semibold text-slate-700">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs font-semibold text-slate-700">
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase mb-0.5">Total Items</span>
                     <strong className="text-black text-sm font-semibold">{(Array.isArray(selectedPO.items) ? selectedPO.items.length : 0)}</strong>
@@ -1337,6 +1828,20 @@ export const Suppliers: React.FC = () => {
                     <span className="text-[10px] text-slate-400 block uppercase mb-0.5">Created By</span>
                     <strong className="text-black text-sm font-semibold">{selectedPO.printedBy || 'Admin'}</strong>
                   </div>
+                  {selectedPO.kitchenRequests && selectedPO.kitchenRequests.length > 0 && (
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase mb-0.5">Related Kitchen Request</span>
+                      <button
+                        onClick={() => {
+                          setSelectedPO(null);
+                          navigate(`/restaurant/inventory-requests?id=${selectedPO.kitchenRequests?.[0]?.id}`);
+                        }}
+                        className="text-emerald-600 hover:text-emerald-700 font-bold underline text-sm block cursor-pointer bg-transparent border-none p-0 text-left"
+                      >
+                        {selectedPO.kitchenRequests?.[0]?.requestNo}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1387,22 +1892,108 @@ export const Suppliers: React.FC = () => {
 
             {/* Modal Bottom Actions */}
             <div className="bg-slate-50 border-t border-slate-200 p-6 flex justify-end gap-3 shrink-0">
-              {selectedPO.status !== 'Delivered' && (
+              {selectedPO.status === 'Draft' && (
                 <button
                   onClick={async () => {
                     try {
-                      await auth.apiRequest(`/suppliers/pos/${selectedPO.id}/status`, {
-                        method: 'PUT',
-                        body: JSON.stringify({ status: 'Delivered' })
-                      });
-                      fetchData();
+                      let updated: any;
+                      if (selectedPO.id.startsWith('po-id-')) {
+                        updated = { ...selectedPO, status: 'Sent' };
+                        setPurchaseOrders(prev => prev.map(p => p.id === selectedPO.id ? updated : p));
+                      } else {
+                        updated = await auth.apiRequest(`/suppliers/pos/${selectedPO.id}/status`, {
+                          method: 'PUT',
+                          body: JSON.stringify({ status: 'Sent' })
+                        });
+                        await fetchData();
+                      }
+                      setSelectedPO(updated);
+                      window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
                     } catch (e) {
-                      alert('Failed to update status');
+                      alert('Failed to send order');
                     }
                   }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium h-[36px] px-3.5 rounded-xl text-[14px] flex items-center gap-1 transition active:scale-[0.98] cursor-pointer"
                 >
-                  Mark Delivered
+                  Send Order
+                </button>
+              )}
+              {selectedPO.status === 'Sent' && (
+                <>
+                  <button
+                    onClick={async () => {
+                      try {
+                        let updated: any;
+                        if (selectedPO.id.startsWith('po-id-')) {
+                          updated = { ...selectedPO, status: 'Delivered' };
+                          setPurchaseOrders(prev => prev.map(p => p.id === selectedPO.id ? updated : p));
+                        } else {
+                          updated = await auth.apiRequest(`/suppliers/pos/${selectedPO.id}/status`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ status: 'Delivered' })
+                          });
+                          await fetchData();
+                        }
+                        setSelectedPO(updated);
+                        window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
+                      } catch (e) {
+                        alert('Failed to mark delivered');
+                      }
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium h-[36px] px-3.5 rounded-xl text-[14px] flex items-center gap-1 transition active:scale-[0.98] cursor-pointer"
+                  >
+                    Mark as Delivered
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        let updated: any;
+                        if (selectedPO.id.startsWith('po-id-')) {
+                          updated = { ...selectedPO, status: 'Received' };
+                          setPurchaseOrders(prev => prev.map(p => p.id === selectedPO.id ? updated : p));
+                        } else {
+                          updated = await auth.apiRequest(`/suppliers/pos/${selectedPO.id}/status`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ status: 'Received' })
+                          });
+                          await fetchData();
+                        }
+                        setSelectedPO(updated);
+                        window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
+                      } catch (e) {
+                        alert('Failed to mark received');
+                      }
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium h-[36px] px-3.5 rounded-xl text-[14px] flex items-center gap-1 transition active:scale-[0.98] cursor-pointer"
+                  >
+                    Mark as Received
+                  </button>
+                </>
+              )}
+              {selectedPO.status === 'Delivered' && (
+                <button
+                  onClick={async () => {
+                    try {
+                      let updated: any;
+                      if (selectedPO.id.startsWith('po-id-')) {
+                        updated = { ...selectedPO, status: 'Received' };
+                        setPurchaseOrders(prev => prev.map(p => p.id === selectedPO.id ? updated : p));
+                      } else {
+                        updated = await auth.apiRequest(`/suppliers/pos/${selectedPO.id}/status`, {
+                          method: 'PUT',
+                          body: JSON.stringify({ status: 'Received' })
+                        });
+                        await fetchData();
+                      }
+                      setSelectedPO(updated);
+                      window.dispatchEvent(new CustomEvent('stock-request-mutated', { detail: updated }));
+                    } catch (e) {
+                      alert('Failed to mark received');
+                    }
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium h-[36px] px-3.5 rounded-xl text-[14px] flex items-center gap-1 transition active:scale-[0.98] cursor-pointer"
+                >
+                  Mark as Received
                 </button>
               )}
               <button
@@ -1428,22 +2019,28 @@ export const Suppliers: React.FC = () => {
             </button>
             <h3 className="font-medium text-black text-xl mb-1 flex items-center gap-2">
               Kitchen Purchase Request Details
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-widest ${
-                viewingRequest.status === 'Pending' || viewingRequest.status === 'Pending Approval' ? 'bg-amber-50 text-amber-700' :
-                viewingRequest.status === 'Approved' ? 'bg-blue-50 text-blue-700' :
-                viewingRequest.status === 'Rejected' ? 'bg-red-50 text-red-700' :
-                'bg-emerald-50 text-emerald-700'
-              }`}>
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-widest ${viewingRequest.status === 'Pending' || viewingRequest.status === 'Pending Approval' ? 'bg-amber-50 text-amber-700' :
+                  viewingRequest.status === 'Approved' ? 'bg-blue-50 text-blue-700' :
+                    viewingRequest.status === 'Rejected' ? 'bg-red-50 text-red-700' :
+                      'bg-emerald-50 text-emerald-700'
+                }`}>
                 {viewingRequest.status}
               </span>
             </h3>
             <p className="text-xs text-slate-450 mb-4">Request Reference: {viewingRequest.requestNo}</p>
 
             <div className="flex-1 overflow-y-auto pr-1 space-y-4 scrollbar-thin text-xs text-slate-800">
+              {viewingRequest.status === 'Rejected' && viewingRequest.rejectionReason && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4">
+                  <span className="text-[10px] text-red-500 font-bold block uppercase">Rejection Reason:</span>
+                  <p className="text-red-700 font-semibold mt-1 text-[13px]">{viewingRequest.rejectionReason}</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                 <div>
                   <span className="text-[10px] text-slate-400 font-semibold block uppercase">Metadata</span>
                   <span className="text-slate-600 block mt-1">Requested By: <strong className="text-black">{viewingRequest.requestedBy}</strong></span>
+                  <span className="text-slate-600 block">Created By: <strong className="text-black">{viewingRequest.createdBy || 'Kitchen'}</strong></span>
                   <span className="text-slate-605 block">Date: <strong className="text-black">{new Date(viewingRequest.createdAt).toLocaleDateString()}</strong></span>
                 </div>
                 <div>

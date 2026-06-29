@@ -131,26 +131,38 @@ export const Reservations: React.FC = () => {
         </button>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-600"></div>
-        </div>
-      ) : (
-        <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 text-xs font-bold uppercase tracking-wider">
-                  <th className="px-6 py-4">Customer</th>
-                  <th className="px-6 py-4">Phone</th>
-                  <th className="px-6 py-4">Date & Time</th>
-                  <th className="px-6 py-4">Seats & Table</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm font-semibold text-slate-700">
-                {reservations.map(res => (
+      <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                <th className="px-6 py-4">Customer</th>
+                <th className="px-6 py-4">Phone</th>
+                <th className="px-6 py-4">Date & Time</th>
+                <th className="px-6 py-4">Seats & Table</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm font-semibold text-slate-700">
+              {loading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-slate-200"></div>
+                        <div className="h-4 w-24 bg-slate-200 rounded"></div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4"><div className="h-4 w-20 bg-slate-200 rounded"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 w-28 bg-slate-200 rounded"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 w-24 bg-slate-200 rounded"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 w-16 bg-slate-200 rounded-full"></div></td>
+                    <td className="px-6 py-4 text-right"><div className="h-6 w-16 bg-slate-200 rounded-lg ml-auto"></div></td>
+                  </tr>
+                ))
+              ) :
+                reservations.map(res => (
                   <tr key={res.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center border border-slate-100">
@@ -213,7 +225,6 @@ export const Reservations: React.FC = () => {
             </table>
           </div>
         </div>
-      )}
 
       {/* --- ADD RESERVATION MODAL --- */}
       {showAddModal && (

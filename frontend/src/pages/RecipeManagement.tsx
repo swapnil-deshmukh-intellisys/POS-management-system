@@ -157,18 +157,24 @@ export const RecipeManagement: React.FC = () => {
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-600"></div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Ingredients Stock list */}
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
-            <h3 className="font-extrabold text-slate-800 text-base">Ingredients stock levels</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {ingredients.map(ing => {
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Ingredients Stock list */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
+          <h3 className="font-extrabold text-slate-800 text-base">Ingredients stock levels</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {loading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="p-4 rounded-xl border border-slate-100 bg-white animate-pulse h-20 flex justify-between items-center">
+                  <div className="space-y-2">
+                    <div className="h-4 w-24 bg-slate-200 rounded"></div>
+                    <div className="h-3 w-16 bg-slate-200 rounded"></div>
+                  </div>
+                  <div className="h-6 w-12 bg-slate-200 rounded"></div>
+                </div>
+              ))
+            ) :
+              ingredients.map(ing => {
                 const isLow = ing.stock <= ing.reorderLevel;
                 return (
                   <div
@@ -188,7 +194,7 @@ export const RecipeManagement: React.FC = () => {
                       </span>
                       {isLow ? (
                         <span className="text-[9px] font-bold text-red-500 flex items-center justify-end gap-1 mt-0.5 uppercase">
-                          <AlertTriangle className="w-3 h-3" /> Low Stock
+                          <AlertTriangle className="w-3.5 h-3.5" /> Low Stock
                         </span>
                       ) : (
                         <span className="text-[9px] font-bold text-slate-400 mt-0.5 block">Reorder: {ing.reorderLevel}</span>
@@ -196,15 +202,27 @@ export const RecipeManagement: React.FC = () => {
                     </div>
                   </div>
                 );
-              })}
-            </div>
+              })
+            }
           </div>
+        </div>
 
-          {/* Recipes list */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
-            <h3 className="font-extrabold text-slate-800 text-base">MenuItem Recipes</h3>
-            <div className="space-y-3">
-              {recipes.map(recipe => (
+        {/* Recipes list */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
+          <h3 className="font-extrabold text-slate-800 text-base">MenuItem Recipes</h3>
+          <div className="space-y-3">
+            {loading ? (
+              Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} className="p-4 border border-slate-100 rounded-xl bg-slate-50 animate-pulse h-24 flex flex-col justify-between">
+                  <div className="h-4 w-32 bg-slate-200 rounded"></div>
+                  <div className="space-y-1.5 pt-2">
+                    <div className="h-3 w-full bg-slate-200 rounded"></div>
+                    <div className="h-3 w-3/4 bg-slate-200 rounded"></div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              recipes.map(recipe => (
                 <div key={recipe.id} className="p-4 border border-slate-100 rounded-xl space-y-2 bg-slate-50/50">
                   <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                     <h4 className="text-sm font-extrabold text-slate-800">{recipe.menuItem?.name || 'Dish'}</h4>
@@ -219,12 +237,12 @@ export const RecipeManagement: React.FC = () => {
                     ))}
                   </div>
                 </div>
-              ))}
+            )))}
             </div>
           </div>
 
         </div>
-      )}
+
 
       {/* --- ADD INGREDIENT MODAL --- */}
       {showIngModal && (

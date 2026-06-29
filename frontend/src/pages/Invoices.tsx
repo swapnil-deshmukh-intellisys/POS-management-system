@@ -109,9 +109,18 @@ export const Invoices: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700 text-sm text-slate-800 dark:text-slate-350">
               {isLoading ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400 font-bold">Loading invoices...</td>
-                </tr>
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-4 py-4"><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24"></div></td>
+                    <td className="px-4 py-4"><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32"></div></td>
+                    <td className="px-4 py-4 text-center"><div className="h-6 bg-slate-200 dark:bg-slate-700 rounded-full w-20 mx-auto"></div></td>
+                    <td className="px-4 py-4 text-right"><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-8 ml-auto"></div></td>
+                    <td className="px-4 py-4 text-right"><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-12 ml-auto"></div></td>
+                    <td className="px-4 py-4 text-right"><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-16 ml-auto"></div></td>
+                    <td className="px-4 py-4"><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-36"></div></td>
+                    <td className="px-4 py-4 text-center"><div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-xl w-24 mx-auto"></div></td>
+                  </tr>
+                ))
               ) : invoices.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-slate-400 font-bold">No invoices found.</td>

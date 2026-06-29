@@ -211,15 +211,24 @@ export const TableManagement: React.FC = () => {
         </button>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-600"></div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {/* Live Tables Grid */}
-          <div className="md:col-span-2 lg:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-5">
-            {tables.map(table => (
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {/* Live Tables Grid */}
+        <div className="md:col-span-2 lg:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-5">
+          {loading ?
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="p-5 rounded-2xl border border-slate-100 bg-white animate-pulse h-28 flex flex-col justify-between">
+                <div className="flex justify-between items-center">
+                  <div className="h-4 w-16 bg-slate-200 rounded"></div>
+                  <div className="h-4 w-16 bg-slate-200 rounded-full"></div>
+                </div>
+                <div className="flex justify-between items-center mt-6">
+                  <div className="h-3 w-20 bg-slate-200 rounded"></div>
+                  <div className="h-6 w-6 bg-slate-200 rounded-lg"></div>
+                </div>
+              </div>
+            ))
+          :
+            tables.map(table => (
               <div
                 key={table.id}
                 onClick={() => setSelectedTable(table)}
@@ -248,8 +257,9 @@ export const TableManagement: React.FC = () => {
                   )}
                 </div>
               </div>
-            ))}
-          </div>
+            ))
+          }
+        </div>
 
           {/* Table Control Panel Side Drawer */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-6 self-start">
@@ -257,7 +267,7 @@ export const TableManagement: React.FC = () => {
               {selectedTable ? `${selectedTable.tableNumber} Panel` : 'Select a Table'}
             </h3>
 
-            {selectedTable ? (
+            {selectedTable ?
               <div className="space-y-4">
                 {/* Details */}
                 <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -347,14 +357,14 @@ export const TableManagement: React.FC = () => {
                   </div>
                 </div>
               </div>
-            ) : (
+            :
               <div className="text-center py-10">
                 <p className="text-sm text-slate-400 font-medium">Click on any dining table card to manage live actions.</p>
               </div>
-            )}
+            }
           </div>
         </div>
-      )}
+
 
       {/* --- ADD TABLE MODAL --- */}
       {showAddTableModal && (
@@ -585,7 +595,6 @@ export const TableManagement: React.FC = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };

@@ -48,6 +48,7 @@ interface StockRequest {
   convertedAt?: string;
   purchaseOrderId?: string;
   purchaseOrder?: PurchaseOrder;
+  createdBy?: string;
 }
 
 export const InventoryRequests: React.FC = () => {
@@ -55,6 +56,7 @@ export const InventoryRequests: React.FC = () => {
 
   // State Management
   const [requests, setRequests] = useState<StockRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Modals & Drawers
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -74,6 +76,7 @@ export const InventoryRequests: React.FC = () => {
 
   // Fetch Sourcing Data
   const fetchData = async () => {
+    setIsLoading(true);
     try {
       const reqData = await auth.apiRequest('/suppliers/kitchen-requests').catch(() => []);
 
@@ -90,6 +93,8 @@ export const InventoryRequests: React.FC = () => {
       const dummyRequests = generateDummyRequests();
       dummyRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setRequests(dummyRequests);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -104,6 +109,23 @@ export const InventoryRequests: React.FC = () => {
       window.removeEventListener('stock-request-mutated', handleMutation);
     };
   }, []);
+
+  // Sync activeFilter and selectedRequest with URL search params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const filterParam = params.get('filter');
+    if (filterParam && ['All', 'Pending Approval', 'Approved', 'Converted', 'Sent'].includes(filterParam)) {
+      setActiveFilter(filterParam as any);
+    }
+
+    const idParam = params.get('id') || params.get('requestId');
+    if (idParam && requests.length > 0) {
+      const match = requests.find(r => r.id === idParam || r.requestNo === idParam);
+      if (match) {
+        setSelectedRequest(match);
+      }
+    }
+  }, [window.location.search, requests]);
 
   // Generate Dummy Data for UI Testing:
   // - 20 Sample Requests (Pending Approval, Rejected, etc.)
@@ -401,9 +423,10 @@ export const InventoryRequests: React.FC = () => {
             setFormItems([{ productName: '', quantity: '10', unit: 'Kg', notes: '' }]);
             setShowCreateModal(true);
           }}
-          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.98] shadow-md cursor-pointer shrink-0"
+          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.98] shadow-md cursor-pointer shrink-0 flex items-center gap-1.5"
         >
-          Create Request
+          <Plus className="w-4 h-4" />
+          <span>Create Request</span>
         </button>
       </div>
 
@@ -444,7 +467,37 @@ export const InventoryRequests: React.FC = () => {
 
         {/* Requests Card Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayedRequests.length === 0 ? (
+          {isLoading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-slate-50 dark:bg-slate-900/50 border border-slate-150 dark:border-slate-700 rounded-3xl p-5 animate-pulse h-[240px] flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start border-b pb-3 border-slate-200 dark:border-slate-700">
+                    <div className="space-y-1.5">
+                      <div className="h-4.5 w-28 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                      <div className="h-3 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                    </div>
+                    <div className="h-5 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                  </div>
+                  <div className="pt-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <div className="h-2.5 w-12 bg-slate-250 dark:bg-slate-700 rounded"></div>
+                        <div className="h-3.5 w-20 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="h-2.5 w-12 bg-slate-250 dark:bg-slate-700 rounded"></div>
+                        <div className="h-3.5 w-20 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                  <div className="h-4 w-20 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                  <div className="h-8 w-24 bg-slate-200 dark:bg-slate-700 rounded-xl"></div>
+                </div>
+              </div>
+            ))
+          ) : displayedRequests.length === 0 ? (
             <div className="col-span-full text-center py-12 text-slate-400 italic bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700 rounded-3xl">
               No inventory requests found
             </div>
@@ -468,9 +521,15 @@ export const InventoryRequests: React.FC = () => {
                   </div>
                   
                   <div className="pt-3 space-y-2">
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Requested By:</span>
-                      <strong className="text-black dark:text-white text-[14px] font-semibold">{req.requestedBy}</strong>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block uppercase">Requested By:</span>
+                        <strong className="text-black dark:text-white text-[14px] font-semibold">{req.requestedBy}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block uppercase">Created By:</span>
+                        <strong className="text-black dark:text-white text-[14px] font-semibold">{req.createdBy || 'Kitchen'}</strong>
+                      </div>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 font-semibold block uppercase mb-1">Items:</span>
@@ -489,8 +548,8 @@ export const InventoryRequests: React.FC = () => {
                 <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                   <span className="text-[14px] font-bold text-slate-550 dark:text-slate-400">Total Items: {req.items.length}</span>
                   <button
-                    onClick={() => setSelectedRequest(req)}
-                    className="px-4 py-2 bg-white dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 text-black dark:text-white border border-slate-250 dark:border-slate-655 rounded-xl font-bold active:scale-95 transition cursor-pointer text-xs"
+                     onClick={() => setSelectedRequest(req)}
+                     className="px-4 py-2 bg-white dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 text-black dark:text-white border border-slate-250 dark:border-slate-655 rounded-xl font-bold active:scale-95 transition cursor-pointer text-xs"
                   >
                     View Details
                   </button>
@@ -663,10 +722,14 @@ export const InventoryRequests: React.FC = () => {
               {/* Request Info Card */}
               <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-3">
                 <h4 className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Request Information</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold block">Requested By</span>
                     <strong className="text-black dark:text-white text-sm font-semibold">{selectedRequest.requestedBy}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold block">Created By</span>
+                    <strong className="text-black dark:text-white text-sm font-semibold">{selectedRequest.createdBy || 'Kitchen'}</strong>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold block">Request Date</span>

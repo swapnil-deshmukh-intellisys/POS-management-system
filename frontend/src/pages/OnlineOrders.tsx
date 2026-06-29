@@ -138,11 +138,16 @@ export const OnlineOrders: React.FC = () => {
       </div>
 
       {/* Analytics KPI cards */}
+      {/* Analytics KPI cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Net Revenue</span>
-            <span className="text-xl font-extrabold text-slate-800 mt-1 block">₹{totalRevenue?.toFixed(2)}</span>
+            {loading ? (
+              <div className="h-6 w-24 bg-slate-100 rounded animate-pulse mt-1"></div>
+            ) : (
+              <span className="text-xl font-extrabold text-slate-800 mt-1 block">₹{totalRevenue?.toFixed(2)}</span>
+            )}
           </div>
           <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
             <DollarSign className="w-5 h-5" />
@@ -152,7 +157,11 @@ export const OnlineOrders: React.FC = () => {
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Partner Commissions</span>
-            <span className="text-xl font-extrabold text-slate-800 mt-1 block">₹{totalCommission?.toFixed(2)}</span>
+            {loading ? (
+              <div className="h-6 w-24 bg-slate-100 rounded animate-pulse mt-1"></div>
+            ) : (
+              <span className="text-xl font-extrabold text-slate-800 mt-1 block">₹{totalCommission?.toFixed(2)}</span>
+            )}
           </div>
           <div className="w-10 h-10 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center">
             <Percent className="w-5 h-5" />
@@ -162,7 +171,11 @@ export const OnlineOrders: React.FC = () => {
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Channels Orders</span>
-            <span className="text-xl font-extrabold text-slate-800 mt-1 block">{onlineOrders.length} Completed</span>
+            {loading ? (
+              <div className="h-6 w-24 bg-slate-100 rounded animate-pulse mt-1"></div>
+            ) : (
+              <span className="text-xl font-extrabold text-slate-800 mt-1 block">{onlineOrders.length} Completed</span>
+            )}
           </div>
           <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
             <ShoppingBag className="w-5 h-5" />
@@ -171,26 +184,33 @@ export const OnlineOrders: React.FC = () => {
       </div>
 
       {/* Online orders listing */}
-      {loading ? (
-        <div className="flex items-center justify-center min-h-[40vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-600"></div>
-        </div>
-      ) : (
-        <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 text-xs font-bold uppercase tracking-wider">
-                  <th className="px-6 py-4">Channel Source</th>
-                  <th className="px-6 py-4">Order Items</th>
-                  <th className="px-6 py-4">Total Amount (₹)</th>
-                  <th className="px-6 py-4">Commission (₹)</th>
-                  <th className="px-6 py-4">Net Revenue (₹)</th>
-                  <th className="px-6 py-4">Payment</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm font-semibold text-slate-700">
-                {onlineOrders.map(oo => (
+      <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                <th className="px-6 py-4">Channel Source</th>
+                <th className="px-6 py-4">Order Items</th>
+                <th className="px-6 py-4">Total Amount (₹)</th>
+                <th className="px-6 py-4">Commission (₹)</th>
+                <th className="px-6 py-4">Net Revenue (₹)</th>
+                <th className="px-6 py-4">Payment</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm font-semibold text-slate-700">
+              {loading ? (
+                Array.from({ length: 2 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-6 py-4"><div className="h-4 w-16 bg-slate-200 rounded-full"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 w-48 bg-slate-200 rounded"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 w-16 bg-slate-200 rounded"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 w-16 bg-slate-200 rounded"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 w-16 bg-slate-200 rounded"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 w-12 bg-slate-200 rounded"></div></td>
+                  </tr>
+                ))
+              ) :
+                onlineOrders.map(oo => (
                   <tr key={oo.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border uppercase ${getSourceBadgeColor(oo.orderSource)}`}>
@@ -214,7 +234,7 @@ export const OnlineOrders: React.FC = () => {
             </table>
           </div>
         </div>
-      )}
+
 
     </div>
   );

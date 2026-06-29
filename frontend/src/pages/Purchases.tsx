@@ -382,12 +382,16 @@ export const Purchases: React.FC = () => {
                 <Plus className="w-4 h-4" /> New Purchase Order
               </button>
             </div>
-          </div>
-
-          {/* 2. COLORFUL KPI CARDS (Dashboard style with border hover states and icons animations) */}
+          </div>          {/* 2. COLORFUL KPI CARDS (Dashboard style with border hover states and icons animations) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Card 1: Pending Orders */}
-            <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm text-left flex items-center justify-between transition-all duration-300 hover:border-amber-500 hover:shadow-md hover:-translate-y-1 cursor-pointer group">
+            <div
+              onClick={() => {
+                setPoFilter('PENDING');
+                document.getElementById('pos-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm text-left flex items-center justify-between transition-all duration-300 hover:border-amber-500 hover:shadow-md hover:-translate-y-1 cursor-pointer group"
+            >
               <div>
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Pending Orders</span>
                 <h3 className="text-2xl font-black text-slate-900 mt-1 block tracking-tight">
@@ -400,7 +404,13 @@ export const Purchases: React.FC = () => {
             </div>
 
             {/* Card 2: Received Orders */}
-            <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm text-left flex items-center justify-between transition-all duration-300 hover:border-emerald-500 hover:shadow-md hover:-translate-y-1 cursor-pointer group">
+            <div
+              onClick={() => {
+                setPoFilter('RECEIVED');
+                document.getElementById('pos-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm text-left flex items-center justify-between transition-all duration-300 hover:border-emerald-500 hover:shadow-md hover:-translate-y-1 cursor-pointer group"
+            >
               <div>
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Received Orders</span>
                 <h3 className="text-2xl font-black text-slate-900 mt-1 block tracking-tight">
@@ -413,7 +423,13 @@ export const Purchases: React.FC = () => {
             </div>
 
             {/* Card 3: Pending Payments */}
-            <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm text-left flex items-center justify-between transition-all duration-300 hover:border-rose-500 hover:shadow-md hover:-translate-y-1 cursor-pointer group">
+            <div
+              onClick={() => {
+                setPayFilter('PENDING');
+                document.getElementById('payments-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm text-left flex items-center justify-between transition-all duration-300 hover:border-rose-500 hover:shadow-md hover:-translate-y-1 cursor-pointer group"
+            >
               <div>
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Pending Payments</span>
                 <h3 className="text-2xl font-black text-slate-905 mt-1 block tracking-tight">
@@ -426,7 +442,14 @@ export const Purchases: React.FC = () => {
             </div>
 
             {/* Card 4: Today's Purchases */}
-            <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm text-left flex items-center justify-between transition-all duration-300 hover:border-indigo-500 hover:shadow-md hover:-translate-y-1 cursor-pointer group">
+            <div
+              onClick={() => {
+                setPoFilter('ALL');
+                setPoSearch('');
+                document.getElementById('pos-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm text-left flex items-center justify-between transition-all duration-300 hover:border-indigo-500 hover:shadow-md hover:-translate-y-1 cursor-pointer group"
+            >
               <div>
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Today's Purchases</span>
                 <h3 className="text-2xl font-black text-slate-900 mt-1 block tracking-tight">
@@ -440,7 +463,7 @@ export const Purchases: React.FC = () => {
           </div>
 
           {/* 3. MIDDLE WORKSPACE: PURCHASE ORDERS TABLE */}
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm text-left space-y-4">
+          <div id="pos-section" className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm text-left space-y-4">
             <div className="flex items-center gap-2">
               <ShoppingCart className="w-5 h-5 text-emerald-600" />
               <h2 className="text-lg font-extrabold text-slate-900">Purchase Orders</h2>
@@ -485,9 +508,10 @@ export const Purchases: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="border-b-2 border-slate-100 text-slate-450 text-xs font-bold bg-slate-50/55">
+                  <tr className="border-b-2 border-slate-100 text-slate-455 text-xs font-bold bg-slate-50/55">
                     <th className="px-4 py-3.5 text-left">PO Number</th>
                     <th className="px-4 py-3.5 text-left">Supplier</th>
+                    <th className="px-4 py-3.5 text-left">Created By</th>
                     <th className="px-4 py-3.5 text-right">Products Count</th>
                     <th className="px-4 py-3.5 text-right">Total Quantity</th>
                     <th className="px-4 py-3.5 text-left">Created Date</th>
@@ -498,14 +522,22 @@ export const Purchases: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                   {isLoading ? (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-slate-400 font-bold">
-                        Loading purchase orders...
-                      </td>
-                    </tr>
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i} className="animate-pulse">
+                        <td className="px-4 py-3.5"><div className="h-3.5 w-16 bg-slate-250 dark:bg-slate-705 rounded"></div></td>
+                        <td className="px-4 py-3.5"><div className="h-3.5 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div></td>
+                        <td className="px-4 py-3.5"><div className="h-3.5 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div></td>
+                        <td className="px-4 py-3.5 text-right"><div className="h-3.5 w-10 bg-slate-200 dark:bg-slate-700 rounded ml-auto"></div></td>
+                        <td className="px-4 py-3.5 text-right"><div className="h-3.5 w-12 bg-slate-200 dark:bg-slate-700 rounded ml-auto"></div></td>
+                        <td className="px-4 py-3.5"><div className="h-3.5 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div></td>
+                        <td className="px-4 py-3.5"><div className="h-3.5 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div></td>
+                        <td className="px-4 py-3.5 text-center"><div className="h-5 w-14 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto"></div></td>
+                        <td className="px-4 py-3.5 text-center"><div className="h-5 w-16 bg-slate-200 dark:bg-slate-700 rounded mx-auto"></div></td>
+                      </tr>
+                    ))
                   ) : filteredPurchaseOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center text-slate-400 font-medium italic">
+                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400 font-medium italic">
                         No matching purchase orders found.
                       </td>
                     </tr>
@@ -524,6 +556,7 @@ export const Purchases: React.FC = () => {
                         >
                           <td className="px-4 py-3.5 font-extrabold text-slate-900">{po.orderNumber}</td>
                           <td className="px-4 py-3.5 font-bold text-slate-800">{po.supplier?.name}</td>
+                          <td className="px-4 py-3.5 text-left font-semibold text-indigo-600">{po.createdBy || 'Kitchen'}</td>
                           <td className="px-4 py-3.5 text-right font-bold text-indigo-650">{itemsList.length} items</td>
                           <td className="px-4 py-3.5 text-right font-bold text-slate-900">{totalQty} units</td>
                           <td className="px-4 py-3.5 text-slate-450">{new Date(po.orderDate).toLocaleDateString()}</td>
@@ -581,7 +614,7 @@ export const Purchases: React.FC = () => {
           </div>
 
           {/* 4. SUPPLIER PAYMENTS & BILLS SECTION (Comes after stock receipt) */}
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm text-left space-y-4">
+          <div id="payments-section" className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm text-left space-y-4">
             <div className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-rose-500" />
               <h2 className="text-lg font-extrabold text-slate-900">Supplier Payments</h2>
@@ -639,11 +672,18 @@ export const Purchases: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                   {isLoading ? (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-slate-400 font-bold">
-                        Loading payments...
-                      </td>
-                    </tr>
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i} className="animate-pulse">
+                        <td className="px-4 py-3.5"><div className="h-3.5 w-24 bg-slate-250 dark:bg-slate-705 rounded"></div></td>
+                        <td className="px-4 py-3.5"><div className="h-3.5 w-20 bg-slate-200 dark:bg-slate-700 rounded"></div></td>
+                        <td className="px-4 py-3.5"><div className="h-3.5 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div></td>
+                        <td className="px-4 py-3.5 text-right"><div className="h-3.5 w-16 bg-slate-200 dark:bg-slate-700 rounded ml-auto"></div></td>
+                        <td className="px-4 py-3.5 text-right"><div className="h-3.5 w-16 bg-slate-200 dark:bg-slate-700 rounded ml-auto"></div></td>
+                        <td className="px-4 py-3.5 text-right"><div className="h-3.5 w-16 bg-slate-200 dark:bg-slate-700 rounded ml-auto"></div></td>
+                        <td className="px-4 py-3.5 text-center"><div className="h-5 w-14 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto"></div></td>
+                        <td className="px-4 py-3.5 text-center pr-4"><div className="h-7 w-24 bg-slate-200 dark:bg-slate-700 rounded-xl mx-auto"></div></td>
+                      </tr>
+                    ))
                   ) : filteredInvoices.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-4 py-12 text-center text-slate-400 font-medium italic">
@@ -710,7 +750,7 @@ export const Purchases: React.FC = () => {
               <h2 className="text-lg font-extrabold text-slate-900">Recent Purchase Activity</h2>
             </div>
 
-            <div className="space-y-4 mt-2">
+            <div className="space-y-4 mt-2 max-h-[350px] overflow-y-auto pr-1 scrollbar-thin">
               {recentActivities.map((act, idx) => (
                 <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50/50 rounded-xl border border-slate-100 hover:shadow-sm transition">
                   <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider block mt-0.5 ${act.badgeColor}`}>

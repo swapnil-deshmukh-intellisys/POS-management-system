@@ -50,6 +50,7 @@ interface StockRequest {
   convertedAt?: string;
   purchaseOrderId?: string;
   purchaseOrder?: PurchaseOrder;
+  createdBy?: string;
 }
 
 export const KitchenStockRequest: React.FC = () => {
@@ -463,9 +464,10 @@ export const KitchenStockRequest: React.FC = () => {
             setFormItems([{ productName: '', quantity: '10', unit: 'Kg', notes: '' }]);
             setShowCreateModal(true);
           }}
-          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.98] shadow-md cursor-pointer shrink-0"
+          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.98] shadow-md cursor-pointer shrink-0 flex items-center gap-1.5"
         >
-          Create Purchase Request
+          <Plus className="w-4 h-4" />
+          <span>Create Request</span>
         </button>
       </div>
 
@@ -583,6 +585,7 @@ export const KitchenStockRequest: React.FC = () => {
                       </div>
                       <div className="text-xs text-slate-500 font-medium space-y-0.5">
                         <p>Requested By: <span className="text-slate-700 font-semibold">{req.requestedBy}</span></p>
+                        <p>Created By: <span className="text-indigo-600 font-semibold">{req.createdBy || 'Kitchen'}</span></p>
                         <p>Date: <span className="text-slate-700">{new Date(req.createdAt).toLocaleDateString()}</span></p>
                         <p>Items: <span className="text-emerald-600 font-semibold">{req.items.length}</span></p>
                       </div>
@@ -624,6 +627,7 @@ export const KitchenStockRequest: React.FC = () => {
                       </div>
                       <div className="text-xs text-slate-500 font-medium space-y-0.5">
                         <p>Requested By: <span className="text-slate-700 font-semibold">{req.requestedBy}</span></p>
+                        <p>Created By: <span className="text-indigo-600 font-semibold">{req.createdBy || 'Kitchen'}</span></p>
                         <p>Date: <span className="text-slate-700">{new Date(req.createdAt).toLocaleDateString()}</span></p>
                         <p>Items: <span className="text-emerald-600 font-semibold">{req.items.length}</span></p>
                       </div>
@@ -665,6 +669,7 @@ export const KitchenStockRequest: React.FC = () => {
                       </div>
                       <div className="text-xs text-slate-500 font-medium space-y-0.5">
                         <p>Requested By: <span className="text-slate-700 font-semibold">{req.requestedBy}</span></p>
+                        <p>Created By: <span className="text-indigo-600 font-semibold">{req.createdBy || 'Kitchen'}</span></p>
                         <p>Date: <span className="text-slate-700">{new Date(req.createdAt).toLocaleDateString()}</span></p>
                         <p>Items: <span className="text-emerald-600 font-semibold">{req.items.length}</span></p>
                       </div>
@@ -1028,10 +1033,14 @@ export const KitchenStockRequest: React.FC = () => {
               {/* Request Info Card */}
               <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-100 space-y-3">
                 <h4 className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Request Information</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold block">Requested By</span>
                     <strong className="text-black text-sm font-semibold">{selectedRequest.requestedBy}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold block">Created By</span>
+                    <strong className="text-indigo-605 text-sm font-semibold">{selectedRequest.createdBy || 'Kitchen'}</strong>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold block">Request Date</span>

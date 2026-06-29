@@ -836,153 +836,172 @@ export const DigitalMenuBuilder: React.FC = () => {
                   </div>
                 </div>
 
-                {loading ? (
-                  <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-emerald-600"></div></div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Category List Selector */}
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Categories Catalog</span>
-                        {selectedCategoryFilter !== 'ALL' && (
-                          <button onClick={() => setSelectedCategoryFilter('ALL')} className="text-xs text-emerald-600 hover:text-emerald-700 font-bold">Clear Filter</button>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                        {/* All card */}
-                        <div
-                          onClick={() => setSelectedCategoryFilter('ALL')}
-                          className={`p-2.5 rounded-xl border cursor-pointer transition-all duration-200 select-none flex flex-col justify-between h-[68px] ${
-                            selectedCategoryFilter === 'ALL'
-                              ? 'bg-emerald-50/70 border-emerald-500 text-emerald-900 shadow-sm shadow-emerald-500/5 ring-1 ring-emerald-500/30'
-                              : 'bg-white border-slate-200/80 hover:border-emerald-300 text-slate-800 hover:shadow-sm'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center gap-1.5">
-                            <span className={`text-[10.5px] font-extrabold uppercase tracking-wider truncate ${selectedCategoryFilter === 'ALL' ? 'text-emerald-900' : 'text-slate-800'}`}>All Dishes</span>
-                            <span className="text-[9px] font-bold text-emerald-600 flex items-center gap-1 shrink-0">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                              Active
-                            </span>
+                <div className="space-y-6">
+                  {/* Category List Selector */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Categories Catalog</span>
+                      {selectedCategoryFilter !== 'ALL' && (
+                        <button onClick={() => setSelectedCategoryFilter('ALL')} className="text-xs text-emerald-600 hover:text-emerald-700 font-bold">Clear Filter</button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {loading ? (
+                        Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className="p-2.5 rounded-xl border border-slate-100 bg-white animate-pulse h-[68px] flex flex-col justify-between">
+                            <div className="h-3.5 w-16 bg-slate-200 rounded"></div>
+                            <div className="h-3 w-10 bg-slate-200 rounded"></div>
                           </div>
-                          <div className="flex justify-between items-center text-[10px] font-semibold text-slate-500 mt-1">
-                            <span>{menuItems.length} Items</span>
-                          </div>
-                        </div>
-
-                        {/* Custom Category cards */}
-                        {categories.map(cat => {
-                          const items = menuItems.filter(item => item.categoryId === cat.id);
-                          const isSelected = selectedCategoryFilter === cat.id;
-                          return (
-                            <div
-                              key={cat.id}
-                              onClick={() => setSelectedCategoryFilter(cat.id)}
-                              className={`p-2.5 rounded-xl border cursor-pointer transition-all duration-200 select-none flex flex-col justify-between h-[68px] ${
-                                isSelected
-                                  ? 'bg-emerald-50/70 border-emerald-500 text-emerald-900 shadow-sm shadow-emerald-500/5 ring-1 ring-emerald-500/30'
-                                  : 'bg-white border-slate-200/80 hover:border-emerald-300 text-slate-800 hover:shadow-sm'
-                              }`}
-                            >
-                              <div className="flex justify-between items-center gap-1.5">
-                                <span className={`text-[10.5px] font-extrabold uppercase tracking-wider truncate ${isSelected ? 'text-emerald-900' : 'text-slate-800'}`}>{cat.name}</span>
-                                <span className="text-[9px] font-bold text-emerald-600 flex items-center gap-1 shrink-0">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                                  Active
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center text-[10px] font-semibold text-slate-500 mt-1">
-                                <span>{items.length} Items</span>
-                              </div>
+                        ))
+                      ) : (
+                        <>
+                          {/* All card */}
+                          <div
+                            onClick={() => setSelectedCategoryFilter('ALL')}
+                            className={`p-2.5 rounded-xl border cursor-pointer transition-all duration-200 select-none flex flex-col justify-between h-[68px] ${
+                              selectedCategoryFilter === 'ALL'
+                                ? 'bg-emerald-50/70 border-emerald-500 text-emerald-900 shadow-sm shadow-emerald-500/5 ring-1 ring-emerald-500/30'
+                                : 'bg-white border-slate-200/80 hover:border-emerald-300 text-slate-800 hover:shadow-sm'
+                            }`}
+                          >
+                            <div className="flex justify-between items-center gap-1.5">
+                              <span className={`text-[10.5px] font-extrabold uppercase tracking-wider truncate ${selectedCategoryFilter === 'ALL' ? 'text-emerald-900' : 'text-slate-800'}`}>All Dishes</span>
+                              <span className="text-[9px] font-bold text-emerald-600 flex items-center gap-1 shrink-0">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                                Active
+                              </span>
                             </div>
-                          );
-                        })}
-                      </div>
+                            <div className="flex justify-between items-center text-[10px] font-semibold text-slate-500 mt-1">
+                              <span>{menuItems.length} Items</span>
+                            </div>
+                          </div>
+
+                          {/* Custom Category cards */}
+                          {categories.map(cat => {
+                            const items = menuItems.filter(item => item.categoryId === cat.id);
+                            const isSelected = selectedCategoryFilter === cat.id;
+                            return (
+                              <div
+                                key={cat.id}
+                                onClick={() => setSelectedCategoryFilter(cat.id)}
+                                className={`p-2.5 rounded-xl border cursor-pointer transition-all duration-200 select-none flex flex-col justify-between h-[68px] ${
+                                  isSelected
+                                    ? 'bg-emerald-50/70 border-emerald-500 text-emerald-900 shadow-sm shadow-emerald-500/5 ring-1 ring-emerald-500/30'
+                                    : 'bg-white border-slate-200/80 hover:border-emerald-300 text-slate-800 hover:shadow-sm'
+                                }`}
+                              >
+                                <div className="flex justify-between items-center gap-1.5">
+                                  <span className={`text-[10.5px] font-extrabold uppercase tracking-wider truncate ${isSelected ? 'text-emerald-900' : 'text-slate-800'}`}>{cat.name}</span>
+                                  <span className="text-[9px] font-bold text-emerald-600 flex items-center gap-1 shrink-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                                    Active
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px] font-semibold text-slate-500 mt-1">
+                                  <span>{items.length} Items</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Food Items Catalog list */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Dishes & Recipe List</span>
                     </div>
 
-                    {/* Food Items Catalog list */}
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Dishes & Recipe List</span>
-                      </div>
-
-                      {(() => {
-                        const filtered = selectedCategoryFilter === 'ALL'
-                          ? menuItems
-                          : menuItems.filter(item => item.categoryId === selectedCategoryFilter);
-
-                        if (filtered.length === 0) {
-                          return (
-                            <div className="bg-white rounded-3xl border border-slate-200/60 p-8 text-center shadow-sm">
-                              <p className="text-xs text-slate-400 font-medium italic">No food items found in this category.</p>
+                    {loading ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <div key={i} className="bg-white rounded-3xl border border-slate-100 overflow-hidden animate-pulse h-64 flex flex-col justify-between">
+                            <div className="h-44 bg-slate-150 w-full"></div>
+                            <div className="p-4 space-y-2">
+                              <div className="h-4 w-24 bg-slate-200 rounded"></div>
+                              <div className="h-3 w-32 bg-slate-200 rounded"></div>
                             </div>
-                          );
-                        }
+                          </div>
+                        ))}
+                      </div>
+                    ) : (() => {
+                      const filtered = selectedCategoryFilter === 'ALL'
+                        ? menuItems
+                        : menuItems.filter(item => item.categoryId === selectedCategoryFilter);
 
+                      if (filtered.length === 0) {
                         return (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {filtered.map(item => {
-                              const { type, cleanDesc } = parseFoodTypeAndDescription(item);
-                              const cat = categories.find(c => c.id === item.categoryId);
-                              return (
-                                <div key={item.id} className="bg-white rounded-3xl border border-slate-200/60 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
-                                  <div className="relative h-44 w-full bg-slate-50 overflow-hidden shrink-0">
-                                    <img src={getFoodImage(item)} alt={item.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                                    <div className="absolute top-3 left-3 flex gap-1.5">
-                                      {type === 'Veg' ? (
-                                        <span className="inline-flex items-center justify-center w-[18px] h-[18px] border-2 border-emerald-600 rounded bg-white p-[2px] shadow-sm shrink-0">
-                                          <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex items-center justify-center w-[18px] h-[18px] border-2 border-red-600 rounded bg-white p-[2px] shadow-sm shrink-0">
-                                          <span className="w-2 h-2 rounded-full bg-red-600"></span>
-                                        </span>
-                                      )}
-                                      <span className="text-[9px] font-black uppercase tracking-wider bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-sm text-slate-800">
-                                        {cat?.name || 'Dish'}
+                          <div className="bg-white rounded-3xl border border-slate-200/60 p-8 text-center shadow-sm">
+                            <p className="text-xs text-slate-400 font-medium italic">No food items found in this category.</p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {filtered.map(item => {
+                            const { type, cleanDesc } = parseFoodTypeAndDescription(item);
+                            const cat = categories.find(c => c.id === item.categoryId);
+                            return (
+                              <div key={item.id} className="bg-white rounded-3xl border border-slate-200/60 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+                                <div className="relative h-44 w-full bg-slate-50 overflow-hidden shrink-0">
+                                  <img src={getFoodImage(item)} alt={item.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                                  <div className="absolute top-3 left-3 flex gap-1.5">
+                                    {type === 'Veg' ? (
+                                      <span className="inline-flex items-center justify-center w-[18px] h-[18px] border-2 border-emerald-600 rounded bg-white p-[2px] shadow-sm shrink-0">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
                                       </span>
-                                    </div>
-                                    <div className="absolute bottom-3 right-3">
-                                      <span className="text-[8.5px] font-extrabold uppercase tracking-widest bg-emerald-500 text-white px-2 py-0.5 rounded-full shadow-sm">
-                                        Available
+                                    ) : (
+                                      <span className="inline-flex items-center justify-center w-[18px] h-[18px] border-2 border-red-600 rounded bg-white p-[2px] shadow-sm shrink-0">
+                                        <span className="w-2 h-2 rounded-full bg-red-600"></span>
                                       </span>
-                                    </div>
+                                    )}
+                                    <span className="text-[9px] font-black uppercase tracking-wider bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-sm text-slate-800">
+                                      {cat?.name || 'Dish'}
+                                    </span>
                                   </div>
-                                  <div className="p-4 flex-grow flex flex-col justify-between space-y-3">
+                                  <div className="absolute bottom-3 right-3">
+                                    <span className="text-[8.5px] font-extrabold uppercase tracking-widest bg-emerald-500 text-white px-2 py-0.5 rounded-full shadow-sm">
+                                      Available
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="p-4 flex-grow flex flex-col justify-between space-y-3">
+                                  <div>
+                                    <h5 className="font-extrabold text-slate-800 text-sm tracking-tight line-clamp-1">{item.name}</h5>
+                                    <p className="text-[10.5px] text-slate-500 mt-1 line-clamp-2 leading-relaxed font-medium">{cleanDesc || 'Standard restaurant recipe prepared fresh.'}</p>
+                                  </div>
+                                  <div className="flex justify-between items-center pt-2 border-t border-slate-100">
                                     <div>
-                                      <h5 className="font-extrabold text-slate-800 text-sm tracking-tight line-clamp-1">{item.name}</h5>
-                                      <p className="text-[10.5px] text-slate-500 mt-1 line-clamp-2 leading-relaxed font-medium">{cleanDesc || 'Standard restaurant recipe prepared fresh.'}</p>
+                                      {item.isOnOffer && item.offerPrice ? (
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-[10px] text-slate-400 line-through">₹{item.price}</span>
+                                          <span className="text-sm font-black text-emerald-600">₹{item.offerPrice}</span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-sm font-black text-slate-800">₹{item.price}</span>
+                                      )}
                                     </div>
-                                    <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                                      <div>
-                                        {item.isOnOffer && item.offerPrice ? (
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="text-[10px] text-slate-400 line-through">₹{item.price}</span>
-                                            <span className="text-sm font-black text-emerald-600">₹{item.offerPrice}</span>
-                                          </div>
-                                        ) : (
-                                          <span className="text-sm font-black text-slate-800">₹{item.price}</span>
-                                        )}
-                                      </div>
-                                      <div className="flex gap-2">
-                                        <button onClick={() => handleEditClick(item)} className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-extrabold uppercase tracking-wider transition-all">
-                                          Edit
-                                        </button>
-                                        <button onClick={() => handleDeleteMenuItem(item.id)} className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-100 text-rose-600 text-[10px] font-extrabold uppercase tracking-wider transition-all">
-                                          Delete
-                                        </button>
-                                      </div>
+                                    <div className="flex gap-2">
+                                      <button onClick={() => handleEditClick(item)} className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-extrabold uppercase tracking-wider transition-all">
+                                        Edit
+                                      </button>
+                                      <button onClick={() => handleDeleteMenuItem(item.id)} className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-100 text-rose-600 text-[10px] font-extrabold uppercase tracking-wider transition-all">
+                                        Delete
+                                      </button>
                                     </div>
                                   </div>
                                 </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
-                    </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
-                )}
+                </div>
               </div>
             )}
 

@@ -5,9 +5,11 @@ import { Search, Bell, AlignLeft } from 'lucide-react';
 
 interface NavbarProps {
   onSearchChange?: (val: string) => void;
+  onToggleSidebar?: () => void;
+  isCollapsed?: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onSearchChange }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onSearchChange, onToggleSidebar, isCollapsed = false }) => {
   const { apiRequest, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -276,10 +278,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onSearchChange }) => {
   };
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-30 flex h-20 items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 sm:px-6 lg:left-64 lg:px-8">
+    <header className={`fixed right-0 top-0 z-30 flex h-20 items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 sm:px-6 transition-all duration-300 ease-in-out left-0
+      ${isCollapsed ? 'lg:left-20' : 'lg:left-64'} lg:px-8`}
+    >
       {/* Search Input bar & Menu */}
       <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-6 lg:max-w-xl">
-        <button className="text-slate-400 hover:text-slate-600 transition-colors">
+        <button
+          onClick={onToggleSidebar}
+          className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+        >
           <AlignLeft className="w-5 h-5" />
         </button>
         <div className="relative w-full">

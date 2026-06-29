@@ -517,6 +517,7 @@ model PurchaseOrder {
   discountAmount       Float                @default(0.0) @map("discount_amount")
   totalAmount          Float                @map("total_amount")
   status               String               @default("Draft") @map("status")
+  createdBy            String               @default("Admin") @map("created_by")
   paidAmount           Float                @default(0.0) @map("paid_amount")
   paymentStatus        String               @default("Pending") @map("payment_status")
   paymentsHistory      Json?                @default("[]") @map("payments_history")
@@ -541,6 +542,9 @@ model PurchaseOrder {
   kitchenRequests      KitchenStockRequest[]
 
   @@map("purchase_orders")
+  @@index([status])
+  @@index([supplierId])
+  @@index([createdAt])
 }
 
 model PurchaseOrderItem {
@@ -942,6 +946,8 @@ model RestaurantTable {
   kitchenOrders  KitchenOrder[]
 
   @@map("restaurant_tables")
+  @@index([restaurantId])
+  @@index([status])
 }
 
 model TableQRCode {
@@ -1070,6 +1076,10 @@ model KitchenOrder {
   serviceTasks      ServiceTask[]
 
   @@map("kitchen_orders")
+  @@index([status])
+  @@index([tableId])
+  @@index([waiterId])
+  @@index([createdAt])
 }
 
 model OrderNotification {
@@ -1337,6 +1347,10 @@ model RestaurantInventoryItem {
   poItems         RestaurantPurchaseOrderItem[]
 
   @@map("inventory_products")
+  @@index([categoryId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model RestaurantInventoryMovement {
@@ -1349,6 +1363,9 @@ model RestaurantInventoryMovement {
   createdAt DateTime                @default(now())
 
   @@map("inventory_movements_restaurant")
+  @@index([itemId])
+  @@index([type])
+  @@index([createdAt])
 }
 
 model RestaurantInventoryExpiry {
@@ -1418,6 +1435,9 @@ model RestaurantPurchaseOrder {
   items      RestaurantPurchaseOrderItem[]
 
   @@map("restaurant_purchase_orders")
+  @@index([supplierId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model RestaurantPurchaseOrderItem {
@@ -1446,8 +1466,10 @@ model KitchenStockRequest {
   id              String         @id @default(uuid())
   requestNo       String         @unique @map("request_no")
   requestedBy     String         @map("requested_by")
+  createdBy       String         @default("Kitchen") @map("created_by")
   requestDate     DateTime       @default(now()) @map("request_date")
   status          String         @default("Pending") // Pending, Approved, Rejected, Converted
+  rejectionReason String?        @map("rejection_reason")
   items           Json           // Array of: { productName, quantity, unit, notes }
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
@@ -1455,6 +1477,9 @@ model KitchenStockRequest {
   purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
 
   @@map("kitchen_stock_requests")
+  @@index([status])
+  @@index([purchaseOrderId])
+  @@index([createdAt])
 }
 
 

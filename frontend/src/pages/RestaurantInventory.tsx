@@ -1,70 +1,89 @@
 import React, { useEffect, useState } from 'react';
 import {
   Mail, Phone, Printer, Edit, ShoppingCart, X, AlertTriangle, Search,
-  ArrowUpDown, ChevronLeft, ChevronRight, Plus, Activity, Truck, Calendar, DollarSign, Package
+  ArrowUpDown, ChevronLeft, ChevronRight, Plus, Activity, Truck, Calendar, Package
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-// 60 Realistic Kitchen Raw Materials / Products
-const defaultDummyProducts = [
-  { id: 'dummy-1', name: 'Tomato', currentStock: 125, unitType: 'Kg', purchasePrice: 25, minimumStock: 40, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-06-30' },
-  { id: 'dummy-2', name: 'Onion', currentStock: 80, unitType: 'Kg', purchasePrice: 30, minimumStock: 50, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-07-10' },
-  { id: 'dummy-3', name: 'Potato', currentStock: 150, unitType: 'Kg', purchasePrice: 20, minimumStock: 50, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-07-20' },
-  { id: 'dummy-4', name: 'Rice', currentStock: 250, unitType: 'Kg', purchasePrice: 65, minimumStock: 100, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDate: '2027-06-15' },
-  { id: 'dummy-5', name: 'Wheat Flour', currentStock: 200, unitType: 'Kg', purchasePrice: 45, minimumStock: 80, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDate: '2027-03-10' },
-  { id: 'dummy-6', name: 'Sugar', currentStock: 90, unitType: 'Kg', purchasePrice: 40, minimumStock: 30, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDate: '2027-02-15' },
-  { id: 'dummy-7', name: 'Salt', currentStock: 45, unitType: 'Kg', purchasePrice: 15, minimumStock: 10, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDate: '2028-01-01' },
-  { id: 'dummy-8', name: 'Cooking Oil', currentStock: 60, unitType: 'Liter', purchasePrice: 135, minimumStock: 20, supplierId: 'sup-3', supplierName: 'Sunflow Oils Ltd', supplierMobile: '+91 9988776655', expiryDate: '2026-12-30' },
-  { id: 'dummy-9', name: 'Butter', currentStock: 15, unitType: 'Kg', purchasePrice: 420, minimumStock: 25, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDate: '2026-07-05' },
-  { id: 'dummy-10', name: 'Cheese', currentStock: 8, unitType: 'Kg', purchasePrice: 480, minimumStock: 12, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDate: '2026-07-01' },
-  { id: 'dummy-11', name: 'Paneer', currentStock: 4, unitType: 'Kg', purchasePrice: 320, minimumStock: 10, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDate: '2026-06-27' },
-  { id: 'dummy-12', name: 'Milk', currentStock: 12, unitType: 'Liter', purchasePrice: 60, minimumStock: 30, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDate: '2026-06-25' },
-  { id: 'dummy-13', name: 'Curd', currentStock: 5, unitType: 'Kg', purchasePrice: 80, minimumStock: 15, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDate: '2026-06-26' },
-  { id: 'dummy-14', name: 'Green Chilli', currentStock: 10, unitType: 'Kg', purchasePrice: 80, minimumStock: 5, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-06-29' },
-  { id: 'dummy-15', name: 'Coriander', currentStock: 2, unitType: 'Kg', purchasePrice: 50, minimumStock: 8, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-06-27' },
-  { id: 'dummy-16', name: 'Garlic', currentStock: 22, unitType: 'Kg', purchasePrice: 160, minimumStock: 10, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-08-15' },
-  { id: 'dummy-17', name: 'Ginger', currentStock: 18, unitType: 'Kg', purchasePrice: 120, minimumStock: 8, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-08-10' },
-  { id: 'dummy-18', name: 'Black Pepper', currentStock: 5, unitType: 'Kg', purchasePrice: 650, minimumStock: 3, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDate: '2027-10-10' },
-  { id: 'dummy-19', name: 'Cardamom', currentStock: 1.5, unitType: 'Kg', purchasePrice: 2400, minimumStock: 2, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDate: '2027-12-05' },
-  { id: 'dummy-20', name: 'Clove', currentStock: 3, unitType: 'Kg', purchasePrice: 900, minimumStock: 2, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDate: '2027-11-20' },
-  { id: 'dummy-21', name: 'Tea Powder', currentStock: 12, unitType: 'Kg', purchasePrice: 280, minimumStock: 10, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDate: '2027-05-18' },
-  { id: 'dummy-22', name: 'Coffee Powder', currentStock: 8, unitType: 'Kg', purchasePrice: 450, minimumStock: 6, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDate: '2027-04-20' },
-  { id: 'dummy-23', name: 'Soft Drink Syrup', currentStock: 4, unitType: 'Liter', purchasePrice: 850, minimumStock: 10, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDate: '2026-11-15' },
-  { id: 'dummy-24', name: 'Packaging Containers', currentStock: 500, unitType: 'Piece', purchasePrice: 5, minimumStock: 200, supplierId: 'sup-7', supplierName: 'City Packaging Depot', supplierMobile: '+91 9555444333', expiryDate: '2028-02-15' },
-  { id: 'dummy-25', name: 'Paper Cups', currentStock: 800, unitType: 'Piece', purchasePrice: 1.5, minimumStock: 300, supplierId: 'sup-7', supplierName: 'City Packaging Depot', supplierMobile: '+91 9555444333', expiryDate: '2028-04-10' },
-  { id: 'dummy-26', name: 'Tissue Paper', currentStock: 1500, unitType: 'Piece', purchasePrice: 0.5, minimumStock: 500, supplierId: 'sup-7', supplierName: 'City Packaging Depot', supplierMobile: '+91 9555444333', expiryDate: '2028-06-01' },
-  { id: 'dummy-27', name: 'Mushroom', currentStock: 0, unitType: 'Kg', purchasePrice: 160, minimumStock: 5, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-06-24' },
-  { id: 'dummy-28', name: 'Capsicum', currentStock: 3, unitType: 'Kg', purchasePrice: 75, minimumStock: 10, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-06-26' },
-  { id: 'dummy-29', name: 'Broccoli', currentStock: 0, unitType: 'Kg', purchasePrice: 190, minimumStock: 6, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-06-25' },
-  { id: 'dummy-30', name: 'Cabbage', currentStock: 35, unitType: 'Kg', purchasePrice: 28, minimumStock: 15, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-07-02' },
-  { id: 'dummy-31', name: 'Carrot', currentStock: 45, unitType: 'Kg', purchasePrice: 38, minimumStock: 20, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-07-05' },
-  { id: 'dummy-32', name: 'Lemon', currentStock: 250, unitType: 'Piece', purchasePrice: 3, minimumStock: 100, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-07-15' },
-  { id: 'dummy-33', name: 'Mint Leaves', currentStock: 1, unitType: 'Kg', purchasePrice: 40, minimumStock: 5, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDate: '2026-06-25' },
-  { id: 'dummy-34', name: 'Soy Sauce', currentStock: 15, unitType: 'Liter', purchasePrice: 120, minimumStock: 5, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDate: '2027-04-12' },
-  { id: 'dummy-35', name: 'Vinegar', currentStock: 8, unitType: 'Liter', purchasePrice: 45, minimumStock: 5, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDate: '2027-08-20' },
-  { id: 'dummy-36', name: 'Tomato Puree', currentStock: 40, unitType: 'Packet', purchasePrice: 90, minimumStock: 15, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDate: '2026-10-18' },
-  { id: 'dummy-37', name: 'Mayonnaise', currentStock: 6, unitType: 'Kg', purchasePrice: 210, minimumStock: 10, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDate: '2026-08-01' },
-  { id: 'dummy-38', name: 'Red Chilli Sauce', currentStock: 12, unitType: 'Liter', purchasePrice: 110, minimumStock: 6, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDate: '2026-12-05' },
-  { id: 'dummy-39', name: 'Green Chilli Sauce', currentStock: 10, unitType: 'Liter', purchasePrice: 105, minimumStock: 6, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDate: '2026-12-10' },
-  { id: 'dummy-40', name: 'Pasta', currentStock: 30, unitType: 'Kg', purchasePrice: 95, minimumStock: 15, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDate: '2027-05-01' },
-  { id: 'dummy-41', name: 'Corn Flour', currentStock: 15, unitType: 'Kg', purchasePrice: 60, minimumStock: 10, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDate: '2027-02-18' },
-  { id: 'dummy-42', name: 'Maida', currentStock: 120, unitType: 'Kg', purchasePrice: 38, minimumStock: 50, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDate: '2027-01-20' },
-  { id: 'dummy-43', name: 'Suji', currentStock: 25, unitType: 'Kg', purchasePrice: 42, minimumStock: 15, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDate: '2027-03-05' },
-  { id: 'dummy-44', name: 'Salted Peanuts', currentStock: 8, unitType: 'Packet', purchasePrice: 85, minimumStock: 12, supplierId: 'sup-7', supplierName: 'City Packaging Depot', supplierMobile: '+91 9555444333', expiryDate: '2026-09-30' },
-  { id: 'dummy-45', name: 'Cashew Nuts', currentStock: 10, unitType: 'Kg', purchasePrice: 850, minimumStock: 5, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDate: '2027-08-25' },
-  { id: 'dummy-46', name: 'Almonds', currentStock: 12, unitType: 'Kg', purchasePrice: 900, minimumStock: 5, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDate: '2027-09-15' },
-  { id: 'dummy-47', name: 'Raisins', currentStock: 6, unitType: 'Kg', purchasePrice: 400, minimumStock: 4, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDate: '2027-07-20' },
-  { id: 'dummy-48', name: 'Baking Powder', currentStock: 4, unitType: 'Kg', purchasePrice: 180, minimumStock: 2, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDate: '2027-04-10' },
-  { id: 'dummy-49', name: 'Yeast', currentStock: 1.2, unitType: 'Kg', purchasePrice: 350, minimumStock: 2, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDate: '2026-08-15' },
-  { id: 'dummy-50', name: 'Vanilla Essence', currentStock: 3, unitType: 'Liter', purchasePrice: 650, minimumStock: 1, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDate: '2027-12-01' }
-];
+// Dynamically calculate expiry dates relative to current time to keep expiry KPIs active and stable
+const computeDummyProducts = () => {
+  const now = Date.now();
+  const day = 24 * 3600 * 1000;
+  const productsRaw = [
+    // Low Stock (currentStock <= minimumStock & > 0)
+    { id: 'dummy-1', name: 'Tomato', currentStock: 12, unitType: 'Kg', minimumStock: 40, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: 4 },
+    { id: 'dummy-2', name: 'Onion', currentStock: 15, unitType: 'Kg', minimumStock: 50, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: 9 },
+    { id: 'dummy-3', name: 'Butter', currentStock: 5, unitType: 'Kg', minimumStock: 25, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDaysOffset: 2 },
+    { id: 'dummy-4', name: 'Cheese', currentStock: 4, unitType: 'Kg', minimumStock: 12, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDaysOffset: 1 },
+    { id: 'dummy-5', name: 'Paneer', currentStock: 3, unitType: 'Kg', minimumStock: 10, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDaysOffset: 0 },
+    { id: 'dummy-6', name: 'Milk', currentStock: 8, unitType: 'Liter', minimumStock: 30, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDaysOffset: -1 }, // Expired
+    { id: 'dummy-7', name: 'Curd', currentStock: 2, unitType: 'Kg', minimumStock: 15, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDaysOffset: -2 }, // Expired
+    { id: 'dummy-8', name: 'Green Chilli', currentStock: 2, unitType: 'Kg', minimumStock: 5, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: 3 },
+    { id: 'dummy-9', name: 'Coriander', currentStock: 1, unitType: 'Kg', minimumStock: 8, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: 2 },
+    { id: 'dummy-10', name: 'Cardamom', currentStock: 0.8, unitType: 'Kg', minimumStock: 2, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDaysOffset: 360 },
+    { id: 'dummy-11', name: 'Soft Drink Syrup', currentStock: 3, unitType: 'Liter', minimumStock: 10, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDaysOffset: 120 },
+    { id: 'dummy-12', name: 'Capsicum', currentStock: 2, unitType: 'Kg', minimumStock: 10, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: 5 },
+    { id: 'dummy-13', name: 'Mint Leaves', currentStock: 0.5, unitType: 'Kg', minimumStock: 5, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: 1 },
+    { id: 'dummy-14', name: 'Mayonnaise', currentStock: 4, unitType: 'Kg', minimumStock: 10, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDaysOffset: 45 },
+    { id: 'dummy-15', name: 'Yeast', currentStock: 0.5, unitType: 'Kg', minimumStock: 2, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDaysOffset: 8 },
+    { id: 'dummy-16', name: 'Baking Powder', currentStock: 1, unitType: 'Kg', minimumStock: 2.5, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDaysOffset: 25 },
+    
+    // Out of Stock (currentStock <= 0)
+    { id: 'dummy-17', name: 'Mushroom', currentStock: 0, unitType: 'Kg', minimumStock: 5, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: -3 },
+    { id: 'dummy-18', name: 'Broccoli', currentStock: 0, unitType: 'Kg', minimumStock: 6, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: -4 },
+    { id: 'dummy-19', name: 'Paneer Cubes (Frozen)', currentStock: 0, unitType: 'Kg', minimumStock: 15, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDaysOffset: -10 },
+    { id: 'dummy-20', name: 'Red Bell Pepper', currentStock: 0, unitType: 'Kg', minimumStock: 8, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: -2 },
+    { id: 'dummy-21', name: 'Yellow Bell Pepper', currentStock: 0, unitType: 'Kg', minimumStock: 8, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: -2 },
+    { id: 'dummy-22', name: 'Fresh Cream', currentStock: 0, unitType: 'Liter', minimumStock: 12, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDaysOffset: -1 },
+    { id: 'dummy-23', name: 'Garlic Paste', currentStock: 0, unitType: 'Kg', minimumStock: 5, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDaysOffset: -5 },
+    { id: 'dummy-24', name: 'Ginger Paste', currentStock: 0, unitType: 'Kg', minimumStock: 5, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDaysOffset: -5 },
+    { id: 'dummy-25', name: 'Mozzarella Shredded', currentStock: 0, unitType: 'Kg', minimumStock: 20, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDaysOffset: -8 },
+    { id: 'dummy-26', name: 'Sweet Corn', currentStock: 0, unitType: 'Kg', minimumStock: 10, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: -4 },
+    
+    // In Stock (currentStock > minimumStock) & Expiring Soon (offset between 0 and 30)
+    { id: 'dummy-27', name: 'Fresh Cream Cup', currentStock: 25, unitType: 'Piece', minimumStock: 10, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDaysOffset: 5 },
+    { id: 'dummy-28', name: 'Sliced Cheese Pack', currentStock: 30, unitType: 'Piece', minimumStock: 15, supplierId: 'sup-4', supplierName: 'Amul Dairy Dist.', supplierMobile: '+91 9090909090', expiryDaysOffset: 12 },
+    { id: 'dummy-29', name: 'Basil Leaves', currentStock: 12, unitType: 'Kg', minimumStock: 5, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: 3 },
+    { id: 'dummy-30', name: 'Oregano Spices', currentStock: 8, unitType: 'Kg', minimumStock: 3, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDaysOffset: 28 },
+    { id: 'dummy-31', name: 'Chilli Flakes Pack', currentStock: 10, unitType: 'Kg', minimumStock: 4, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDaysOffset: 14 },
+    { id: 'dummy-32', name: 'Tomato Sauce Jug', currentStock: 40, unitType: 'Liter', minimumStock: 10, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDaysOffset: 20 },
+    
+    // In Stock & Long Expiry
+    { id: 'dummy-33', name: 'Potato Big', currentStock: 150, unitType: 'Kg', minimumStock: 50, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: 45 },
+    { id: 'dummy-34', name: 'Rice Basmati', currentStock: 250, unitType: 'Kg', minimumStock: 100, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDaysOffset: 365 },
+    { id: 'dummy-35', name: 'Wheat Premium', currentStock: 200, unitType: 'Kg', minimumStock: 80, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDaysOffset: 300 },
+    { id: 'dummy-36', name: 'Sugar White', currentStock: 90, unitType: 'Kg', minimumStock: 30, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDaysOffset: 200 },
+    { id: 'dummy-37', name: 'Salt Iodized', currentStock: 45, unitType: 'Kg', minimumStock: 10, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDaysOffset: 400 },
+    { id: 'dummy-38', name: 'Cooking Oil Premium', currentStock: 60, unitType: 'Liter', minimumStock: 20, supplierId: 'sup-3', supplierName: 'Sunflow Oils Ltd', supplierMobile: '+91 9988776655', expiryDaysOffset: 180 },
+    { id: 'dummy-39', name: 'Black Pepper Ground', currentStock: 15, unitType: 'Kg', minimumStock: 3, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDaysOffset: 500 },
+    { id: 'dummy-40', name: 'Clove Whole', currentStock: 5, unitType: 'Kg', minimumStock: 2, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDaysOffset: 450 },
+    { id: 'dummy-41', name: 'Tea Powder Gold', currentStock: 32, unitType: 'Kg', minimumStock: 10, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDaysOffset: 320 },
+    { id: 'dummy-42', name: 'Coffee Powder Premium', currentStock: 28, unitType: 'Kg', minimumStock: 6, supplierId: 'sup-5', supplierName: 'Spice Route Exporters', supplierMobile: '+91 9777666555', expiryDaysOffset: 280 },
+    { id: 'dummy-43', name: 'Packaging Box Medium', currentStock: 500, unitType: 'Piece', minimumStock: 200, supplierId: 'sup-7', supplierName: 'City Packaging Depot', supplierMobile: '+91 9555444333', expiryDaysOffset: 720 },
+    { id: 'dummy-44', name: 'Paper Cups 250ml', currentStock: 800, unitType: 'Piece', minimumStock: 300, supplierId: 'sup-7', supplierName: 'City Packaging Depot', supplierMobile: '+91 9555444333', expiryDaysOffset: 800 },
+    { id: 'dummy-45', name: 'Tissue Soft', currentStock: 1500, unitType: 'Piece', minimumStock: 500, supplierId: 'sup-7', supplierName: 'City Packaging Depot', supplierMobile: '+91 9555444333', expiryDaysOffset: 900 },
+    { id: 'dummy-46', name: 'Lemon Citric', currentStock: 250, unitType: 'Piece', minimumStock: 100, supplierId: 'sup-1', supplierName: 'Fresh Farm Traders', supplierMobile: '+91 9876543210', expiryDaysOffset: 45 },
+    { id: 'dummy-47', name: 'Soy Sauce Dark', currentStock: 25, unitType: 'Liter', minimumStock: 5, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDaysOffset: 360 },
+    { id: 'dummy-48', name: 'Vinegar Synthetic', currentStock: 18, unitType: 'Liter', minimumStock: 5, supplierId: 'sup-6', supplierName: 'Beverage Solutions', supplierMobile: '+91 9666555444', expiryDaysOffset: 500 },
+    { id: 'dummy-49', name: 'Maida Special', currentStock: 120, unitType: 'Kg', minimumStock: 50, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDaysOffset: 180 },
+    { id: 'dummy-50', name: 'Suji Premium', currentStock: 45, unitType: 'Kg', minimumStock: 15, supplierId: 'sup-2', supplierName: 'Punjab Grains Co.', supplierMobile: '+91 9812345678', expiryDaysOffset: 240 }
+  ];
+
+  return productsRaw.map(p => {
+    const expDate = new Date(now + p.expiryDaysOffset * day).toISOString().split('T')[0];
+    return {
+      ...p,
+      expiryDate: expDate
+    };
+  });
+};
 
 export const RestaurantInventory: React.FC = () => {
   const auth = useAuth();
   const isAdmin = !!auth.user;
 
   // State management
-  const [products, setProducts] = useState<any[]>(defaultDummyProducts);
+  const [products, setProducts] = useState<any[]>(computeDummyProducts());
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,7 +125,6 @@ export const RestaurantInventory: React.FC = () => {
     name: '',
     currentStock: '0',
     minimumStock: '10',
-    purchasePrice: '0',
     unitType: 'Kg',
     supplierId: '',
     expiryDate: '',
@@ -152,13 +170,13 @@ export const RestaurantInventory: React.FC = () => {
         auth.apiRequest('/restaurant/inventory/movements')
       ]);
 
-      const itemsList = Array.isArray(prodData) && prodData.length > 0 ? prodData : defaultDummyProducts;
+      const itemsList = Array.isArray(prodData) && prodData.length > 0 ? prodData : computeDummyProducts();
       setProducts(itemsList);
       setSuppliers(Array.isArray(supData) ? supData : []);
       setActivities(Array.isArray(movements) ? movements : []);
     } catch (error) {
       console.error('Error fetching restaurant inventory data:', error);
-      setProducts(defaultDummyProducts);
+      setProducts(computeDummyProducts());
     } finally {
       setLoading(false);
     }
@@ -217,7 +235,6 @@ export const RestaurantInventory: React.FC = () => {
         unitType: prodForm.unitType,
         currentStock: parseFloat(prodForm.currentStock) || 0,
         minimumStock: parseFloat(prodForm.minimumStock) || 10,
-        purchasePrice: parseFloat(prodForm.purchasePrice) || 0,
         sellingPrice: 0, // Kitchen ingredients have no selling price
         expiryDate: prodForm.expiryDate || null,
         storageLocation: 'Kitchen Store',
@@ -251,7 +268,6 @@ export const RestaurantInventory: React.FC = () => {
       name: product.name,
       currentStock: String(product.currentStock || 0),
       minimumStock: String(product.minimumStock || 10),
-      purchasePrice: String(product.purchasePrice || 0),
       unitType: product.unitType || 'Kg',
       supplierId: product.supplierId || '',
       expiryDate: product.expiryDate ? new Date(product.expiryDate).toISOString().split('T')[0] : '',
@@ -321,7 +337,6 @@ export const RestaurantInventory: React.FC = () => {
     if (!supplier) return;
 
     const poNumber = `PO-${Date.now().toString().slice(-6)}`;
-    const totalCost = (parseFloat(poForm.quantity) || 0) * (selectedPOProduct?.purchasePrice || 0);
 
     try {
       await auth.apiRequest('/restaurant/inventory/purchase-orders', {
@@ -348,7 +363,7 @@ Name: ${supplier.name}
 Mobile: ${supplier.phone || 'N/A'}
 
 *Items Ordered:*
-- ${selectedPOProduct.name}: ${poForm.quantity} ${selectedPOProduct.unitType || 'Units'} @ ₹${selectedPOProduct.purchasePrice}/unit (Total: ₹${totalCost})
+- ${selectedPOProduct.name}: ${poForm.quantity} ${selectedPOProduct.unitType || 'Units'}
 
 *Notes:*
 ${poForm.notes}
@@ -391,14 +406,12 @@ ${poForm.notes}
               <h3>Ordered Items:</h3>
               <table>
                 <thead>
-                  <tr><th>Item Name</th><th>Quantity</th><th>Unit Price</th><th>Total</th></tr>
+                  <tr><th>Item Name</th><th>Quantity</th></tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td>${selectedPOProduct.name}</td>
                     <td>${poForm.quantity} ${selectedPOProduct.unitType}</td>
-                    <td>₹${selectedPOProduct.purchasePrice}</td>
-                    <td>₹${totalCost}</td>
                   </tr>
                 </tbody>
               </table>
@@ -426,7 +439,6 @@ ${poForm.notes}
   const totalInventoryUnits = products.reduce((sum, p) => sum + (p.currentStock || 0), 0);
 
   // Quick Stats
-  const totalInventoryValue = products.reduce((sum, p) => sum + ((p.currentStock || 0) * (p.purchasePrice || 0)), 0);
   const productsAddedThisWeek = 5;
   const productsExpiringThisMonth = expiringSoonCount;
 
@@ -486,6 +498,12 @@ ${poForm.notes}
       const timeA = getSafeTime(a.createdAt);
       const timeB = getSafeTime(b.createdAt);
       return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+    }
+
+    if (sortField === 'category') {
+      const catA = a.category?.name || 'Kitchen';
+      const catB = b.category?.name || 'Kitchen';
+      return sortOrder === 'asc' ? catA.localeCompare(catB) : catB.localeCompare(catA);
     }
 
     let valA = a[sortField];
@@ -561,7 +579,6 @@ ${poForm.notes}
                   name: '',
                   currentStock: '0',
                   minimumStock: '10',
-                  purchasePrice: '0',
                   unitType: 'Kg',
                   supplierId: '',
                   expiryDate: '',
@@ -622,7 +639,7 @@ ${poForm.notes}
       {/* Quick Stats Bar in One Single Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Inventory Value', value: `₹${totalInventoryValue.toLocaleString()}`, sub: 'Capital locked in kitchen stock', icon: <DollarSign className="w-5 h-5 text-emerald-600" /> },
+          { label: 'Active Suppliers', value: `${suppliers.length || 4} Partners`, sub: 'Trusted supply partners', icon: <Truck className="w-5 h-5 text-emerald-600" /> },
           { label: 'Total Units Available', value: `${totalInventoryUnits} Units`, sub: 'Cumulative ingredients count', icon: <Package className="w-5 h-5 text-emerald-600" /> },
           { label: 'Added This Week', value: `${productsAddedThisWeek} Products`, sub: 'Newly added ingredients', icon: <Plus className="w-5 h-5 text-emerald-600" /> },
           { label: 'Expiring This Month', value: `${productsExpiringThisMonth} Items`, sub: 'Requires immediate usage', icon: <Calendar className="w-5 h-5 text-emerald-600" /> }
@@ -755,22 +772,31 @@ ${poForm.notes}
                   <div className="flex items-center justify-center gap-1">Quantity <ArrowUpDown className="w-3 h-3" /></div>
                 </th>
                 <th className="py-2.5 px-3 text-black whitespace-nowrap text-center">Unit</th>
-                <th onClick={() => handleSort('purchasePrice')} className="py-2.5 px-3 text-center text-black cursor-pointer hover:bg-slate-100 select-none whitespace-nowrap">
-                  <div className="flex items-center justify-center gap-1">Purchase Price <ArrowUpDown className="w-3 h-3" /></div>
-                </th>
-                <th className="py-2.5 px-3 text-black whitespace-nowrap">Supplier</th>
+                <th className="py-2.5 px-3 text-center text-black whitespace-nowrap">Stock Status</th>
                 <th onClick={() => handleSort('expiryDate')} className="py-2.5 px-3 text-black cursor-pointer hover:bg-slate-100 select-none whitespace-nowrap text-center">
                   <div className="flex items-center justify-center gap-1">Expiry Date <ArrowUpDown className="w-3 h-3" /></div>
                 </th>
-                <th className="py-2.5 px-3 text-center text-black whitespace-nowrap">Status</th>
+                <th className="py-2.5 px-3 text-black whitespace-nowrap">Supplier</th>
+                <th onClick={() => handleSort('createdAt')} className="py-2.5 px-3 text-black cursor-pointer hover:bg-slate-100 select-none whitespace-nowrap text-center">
+                  <div className="flex items-center justify-center gap-1">Date Added <ArrowUpDown className="w-3 h-3" /></div>
+                </th>
                 <th className="py-2.5 px-3 text-center text-black whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-normal text-slate-900">
               {loading ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400 italic">Loading kitchen stock registry...</td>
-                </tr>
+                Array.from({ length: 8 }).map((_, idx) => (
+                  <tr key={idx} className="animate-pulse">
+                    <td className="py-4 px-3"><div className="h-4 bg-slate-250 rounded w-2/3"></div></td>
+                    <td className="py-4 px-3 text-center"><div className="h-4 bg-slate-250 rounded w-12 mx-auto"></div></td>
+                    <td className="py-4 px-3 text-center"><div className="h-4 bg-slate-250 rounded w-8 mx-auto"></div></td>
+                    <td className="py-4 px-3 text-center"><div className="h-6 bg-slate-255 rounded w-16 mx-auto"></div></td>
+                    <td className="py-4 px-3 text-center"><div className="h-4 bg-slate-250 rounded w-20 mx-auto"></div></td>
+                    <td className="py-4 px-3"><div className="h-4 bg-slate-250 rounded w-3/4"></div></td>
+                    <td className="py-4 px-3 text-center"><div className="h-4 bg-slate-250 rounded w-20 mx-auto"></div></td>
+                    <td className="py-4 px-3 text-center"><div className="h-6 bg-slate-255 rounded w-24 mx-auto"></div></td>
+                  </tr>
+                ))
               ) : currentItems.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400 italic">No kitchen raw materials matched filters.</td>
@@ -804,12 +830,14 @@ ${poForm.notes}
                       <td className="py-2 px-3 font-medium text-black whitespace-nowrap" title={p.name}>{p.name}</td>
                       <td className="py-2 px-3 font-semibold text-black text-center">{qty}</td>
                       <td className="py-2 px-3 text-slate-500 font-semibold text-center">{p.unitType || 'Kg'}</td>
-                      <td className="py-2 px-3 text-center text-black font-bold whitespace-nowrap">₹{p.purchasePrice || 0}</td>
-                      <td className="py-2 px-3 font-semibold text-black whitespace-nowrap" title={p.supplierName}>{p.supplierName || 'N/A'}</td>
+                      <td className="py-2 px-3 text-center whitespace-nowrap">{statusBadge}</td>
                       <td className="py-2 px-3 text-black font-normal whitespace-nowrap text-center">
                         {p.expiryDate ? new Date(p.expiryDate).toLocaleDateString() : 'N/A'}
                       </td>
-                      <td className="py-2 px-3 text-center whitespace-nowrap">{statusBadge}</td>
+                      <td className="py-2 px-3 font-semibold text-black whitespace-nowrap" title={p.supplierName || p.supplier?.name}>{p.supplierName || p.supplier?.name || 'N/A'}</td>
+                      <td className="py-2 px-3 text-black font-normal whitespace-nowrap text-center">
+                        {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'N/A'}
+                      </td>
                       <td className="py-2 px-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           {qty <= 0 ? (
@@ -1000,7 +1028,17 @@ ${poForm.notes}
         <h3 className="text-sm md:text-base font-bold text-black uppercase tracking-wider mb-3 border-b pb-2">Expiry Tracking</h3>
         <div className="max-h-[480px] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {expiringItems.length === 0 ? (
+            {loading ? (
+              Array.from({ length: 4 }).map((_, idx) => (
+                <div key={idx} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between animate-pulse">
+                  <div className="space-y-1.5 flex-1 text-left">
+                    <div className="h-3.5 bg-slate-200 rounded w-1/3"></div>
+                    <div className="h-3 bg-slate-200 rounded w-1/2"></div>
+                  </div>
+                  <div className="h-5 bg-slate-200 rounded w-16"></div>
+                </div>
+              ))
+            ) : expiringItems.length === 0 ? (
               <p className="text-xs text-slate-400 italic col-span-2">No products expiring in the next 30 days.</p>
             ) : (
               expiringItems.map(p => {
@@ -1038,20 +1076,32 @@ ${poForm.notes}
             <h3 className="text-sm md:text-base font-bold text-black uppercase tracking-wider">Inventory Activity</h3>
           </div>
           <div className="max-h-[480px] overflow-y-auto pr-1 space-y-3">
-            {(activities.length > 0 
-              ? [...activities].sort((a, b) => getSafeTime(b.createdAt) - getSafeTime(a.createdAt)) 
-              : mockActivities
-            ).map((act: any, idx: number) => (
-              <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
-                <div>
-                  <strong className="text-black font-normal block">{act.item?.name || act.productName}</strong>
-                  <span className="text-[10px] md:text-xs text-slate-400 font-semibold block mt-0.5">{act.createdAt ? new Date(act.createdAt).toLocaleTimeString() : act.time}</span>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, idx) => (
+                <div key={idx} className="flex justify-between items-center py-2 animate-pulse">
+                  <div className="space-y-1.5 flex-1 text-left">
+                    <div className="h-3.5 bg-slate-205 rounded w-2/3"></div>
+                    <div className="h-3 bg-slate-200 rounded w-1/4"></div>
+                  </div>
+                  <div className="h-5 bg-slate-200 rounded w-12"></div>
                 </div>
-                <span className="px-2 py-0.5 bg-slate-50 rounded font-bold text-[10px] md:text-xs text-black">
-                  {act.type || 'Adjustment'}
-                </span>
-              </div>
-            ))}
+              ))
+            ) : (
+              (activities.length > 0 
+                ? [...activities].sort((a, b) => getSafeTime(b.createdAt) - getSafeTime(a.createdAt)) 
+                : mockActivities
+              ).map((act: any, idx: number) => (
+                <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
+                  <div>
+                    <strong className="text-black font-normal block">{act.item?.name || act.productName}</strong>
+                    <span className="text-[10px] md:text-xs text-slate-400 font-semibold block mt-0.5">{act.createdAt ? new Date(act.createdAt).toLocaleTimeString() : act.time}</span>
+                  </div>
+                  <span className="px-2 py-0.5 bg-slate-50 rounded font-bold text-[10px] md:text-xs text-black">
+                    {act.type || 'Adjustment'}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -1062,22 +1112,34 @@ ${poForm.notes}
             <h3 className="text-sm md:text-base font-bold text-black uppercase tracking-wider">Suppliers</h3>
           </div>
           <div className="max-h-[480px] overflow-y-auto pr-1 space-y-3">
-            {(suppliers.length > 0 
-              ? [...suppliers].sort((a, b) => getSafeTime(b.createdAt) - getSafeTime(a.createdAt)) 
-              : [...supplierOverviewList].sort((a, b) => getSafeTime(b.date) - getSafeTime(a.date))
-            ).map((sup: any, idx: number) => (
-              <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
-                <div>
-                  <strong className="text-black font-semibold block">{sup.name}</strong>
-                  <span className="text-[10px] md:text-xs text-slate-500 font-semibold block mt-0.5">
-                    Products: {sup.count || sup.items?.length || 0} supplied | Last Order: {sup.lastPurchaseDate ? new Date(sup.lastPurchaseDate).toLocaleDateString() : (sup.date || 'N/A')}
+            {loading ? (
+              Array.from({ length: 4 }).map((_, idx) => (
+                <div key={idx} className="flex justify-between items-center py-2 animate-pulse">
+                  <div className="space-y-1.5 flex-1 text-left">
+                    <div className="h-3.5 bg-slate-205 rounded w-1/2"></div>
+                    <div className="h-3 bg-slate-200 rounded w-1/3"></div>
+                  </div>
+                  <div className="h-5 bg-slate-200 rounded w-10"></div>
+                </div>
+              ))
+            ) : (
+              (suppliers.length > 0 
+                ? [...suppliers].sort((a, b) => getSafeTime(b.createdAt) - getSafeTime(a.createdAt)) 
+                : [...supplierOverviewList].sort((a, b) => getSafeTime(b.date) - getSafeTime(a.date))
+              ).map((sup: any, idx: number) => (
+                <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
+                  <div>
+                    <strong className="text-black font-semibold block">{sup.name}</strong>
+                    <span className="text-[10px] md:text-xs text-slate-505 font-semibold block mt-0.5">
+                      Products: {sup.count || sup.items?.length || 0} supplied | Last Order: {sup.lastPurchaseDate ? new Date(sup.lastPurchaseDate).toLocaleDateString() : (sup.date || 'N/A')}
+                    </span>
+                  </div>
+                  <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded font-bold text-[10px] md:text-xs">
+                    {sup.status || 'Active'}
                   </span>
                 </div>
-                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded font-bold text-[10px] md:text-xs">
-                  {sup.status || 'Active'}
-                </span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -1255,8 +1317,7 @@ ${poForm.notes}
 
             <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 mb-4 text-xs">
               <div className="flex justify-between mb-1"><span className="text-slate-455 font-bold">Item Name:</span> <strong className="text-black">{selectedPOProduct.name}</strong></div>
-              <div className="flex justify-between mb-1"><span className="text-slate-455 font-bold">Current Stock:</span> <strong className="text-black">{selectedPOProduct.currentStock} {selectedPOProduct.unitType}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-455 font-bold">Purchase Price:</span> <strong className="text-black">₹{selectedPOProduct.purchasePrice} / {selectedPOProduct.unitType}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-455 font-bold">Current Stock:</span> <strong className="text-black">{selectedPOProduct.currentStock} {selectedPOProduct.unitType}</strong></div>
             </div>
 
             <div className="space-y-4 text-xs font-semibold text-slate-700 overflow-y-auto pr-1">

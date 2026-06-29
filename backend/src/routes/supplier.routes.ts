@@ -78,6 +78,11 @@ router.post('/returns/:id/approve', approveSupplierReturn as any);
 // Product Mappings
 router.post('/mappings', createSupplierProductMapping as any);
 
+// Kitchen Stock Requests Integration
+router.get('/kitchen-requests', getKitchenStockRequests as any);
+router.post('/kitchen-requests', createKitchenStockRequest as any);
+router.put('/kitchen-requests/:id/status', updateKitchenStockRequestStatus as any);
+
 // Basic CRUD
 router.get('/:id', getSupplierById as any);
 router.post('/', createSupplier as any);
@@ -85,10 +90,5 @@ router.put('/:id', updateSupplier as any);
 router.delete('/:id', deleteSupplier as any);
 router.post('/:id/note', addSupplierNote as any);
 router.post('/:id/document', uploadSupplierDocument as any);
-
-// Kitchen Stock Requests Integration
-router.get('/kitchen-requests', getKitchenStockRequests as any);
-router.post('/kitchen-requests', createKitchenStockRequest as any);
-router.put('/kitchen-requests/:id/status', updateKitchenStockRequestStatus as any);
 
 export default router;

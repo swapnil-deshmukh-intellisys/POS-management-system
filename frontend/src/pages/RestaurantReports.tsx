@@ -43,14 +43,6 @@ export const RestaurantReports: React.FC = () => {
     fetchReports();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-600"></div>
-      </div>
-    );
-  }
-
   // P&L calculation
   const totalSales = reports?.totalSales || 0;
   const foodCost = totalSales * 0.32; // simulated 32% food cost
@@ -68,22 +60,38 @@ export const RestaurantReports: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Sales Revenue</span>
-          <span className="text-xl font-extrabold text-slate-800 mt-1 block">₹{totalSales?.toFixed(2)}</span>
+          {loading ? (
+            <div className="h-6 w-24 bg-slate-100 rounded animate-pulse mt-1"></div>
+          ) : (
+            <span className="text-xl font-extrabold text-slate-800 mt-1 block">₹{totalSales?.toFixed(2)}</span>
+          )}
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Est. Cost of Goods</span>
-          <span className="text-xl font-extrabold text-orange-600 mt-1 block">₹{foodCost?.toFixed(2)}</span>
+          {loading ? (
+            <div className="h-6 w-24 bg-slate-100 rounded animate-pulse mt-1"></div>
+          ) : (
+            <span className="text-xl font-extrabold text-orange-600 mt-1 block">₹{foodCost?.toFixed(2)}</span>
+          )}
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Fixed Operating Costs</span>
-          <span className="text-xl font-extrabold text-slate-500 mt-1 block">₹{operationalCosts?.toFixed(2)}</span>
+          {loading ? (
+            <div className="h-6 w-24 bg-slate-100 rounded animate-pulse mt-1"></div>
+          ) : (
+            <span className="text-xl font-extrabold text-slate-500 mt-1 block">₹{operationalCosts?.toFixed(2)}</span>
+          )}
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Net Profit Margin</span>
-          <span className="text-xl font-extrabold text-emerald-600 mt-1 block">₹{netProfit?.toFixed(2)}</span>
+          {loading ? (
+            <div className="h-6 w-24 bg-slate-100 rounded animate-pulse mt-1"></div>
+          ) : (
+            <span className="text-xl font-extrabold text-emerald-600 mt-1 block">₹{netProfit?.toFixed(2)}</span>
+          )}
         </div>
       </div>
 
@@ -92,76 +100,108 @@ export const RestaurantReports: React.FC = () => {
         {/* Table revenue */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
           <h3 className="font-extrabold text-slate-800 text-base">Table Revenue Distribution</h3>
-          <div className="space-y-4">
-            {reports && Object.entries(reports.tableRevenue || {}).map(([table, revenue]: any) => (
-              <div key={table} className="space-y-2">
-                <div className="flex justify-between text-xs font-bold text-slate-700">
-                  <span>{table}</span>
-                  <span>₹{revenue?.toFixed(2)}</span>
+          {loading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map(n => (
+                <div key={n} className="h-8 bg-slate-100 rounded animate-pulse w-full"></div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {reports && Object.entries(reports.tableRevenue || {}).map(([table, revenue]: any) => (
+                <div key={table} className="space-y-2">
+                  <div className="flex justify-between text-xs font-bold text-slate-700">
+                    <span>{table}</span>
+                    <span>₹{revenue?.toFixed(2)}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                    <div
+                      style={{ width: `${Math.min(100, (revenue / totalSales) * 100)}%` }}
+                      className="bg-emerald-600 h-full rounded-full"
+                    ></div>
+                  </div>
                 </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div
-                    style={{ width: `${Math.min(100, (revenue / totalSales) * 100)}%` }}
-                    className="bg-emerald-600 h-full rounded-full"
-                  ></div>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Popular items */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
           <h3 className="font-extrabold text-slate-800 text-base">Popular Dishes sold</h3>
-          <div className="space-y-4">
-            {reports?.popularDishes?.map((dish: any) => (
-              <div key={dish.name} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-800">{dish.name}</h4>
-                  <span className="text-[9px] font-bold text-slate-400">Qty: {dish.quantity} sold</span>
+          {loading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map(n => (
+                <div key={n} className="h-10 bg-slate-100 rounded animate-pulse w-full"></div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {reports?.popularDishes?.map((dish: any) => (
+                <div key={dish.name} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800">{dish.name}</h4>
+                    <span className="text-[9px] font-bold text-slate-400">Qty: {dish.quantity} sold</span>
+                  </div>
+                  <span className="text-xs font-extrabold text-emerald-600">₹{dish.revenue?.toFixed(2)}</span>
                 </div>
-                <span className="text-xs font-extrabold text-emerald-600">₹{dish.revenue?.toFixed(2)}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Waiter Stats */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
           <h3 className="font-extrabold text-slate-800 text-base">Waitstaff contributions</h3>
-          <div className="space-y-4">
-            {reports?.waiters?.map((w: any) => (
-              <div key={w.name} className="flex justify-between items-center p-3 border-b border-slate-100">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-800">{w.name}</h4>
-                  <span className="text-[9px] font-bold text-slate-400">{w.orders} orders processed</span>
+          {loading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map(n => (
+                <div key={n} className="h-8 bg-slate-100 rounded animate-pulse w-full"></div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {reports?.waiters?.map((w: any) => (
+                <div key={w.name} className="flex justify-between items-center p-3 border-b border-slate-100">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800">{w.name}</h4>
+                    <span className="text-[9px] font-bold text-slate-400">{w.orders} orders processed</span>
+                  </div>
+                  <span className="text-xs font-extrabold text-slate-700">₹{w.sales?.toFixed(2)}</span>
                 </div>
-                <span className="text-xs font-extrabold text-slate-700">₹{w.sales?.toFixed(2)}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Channel Splits */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
           <h3 className="font-extrabold text-slate-800 text-base">Third-Party Channels Net Shares</h3>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-orange-50/20 border border-orange-100 rounded-xl">
-              <div>
-                <h4 className="text-xs font-bold text-slate-800 font-sans">Swiggy Net Channel Sales</h4>
-                <p className="text-[9px] text-slate-400 mt-0.5">15% commission subtracted</p>
-              </div>
-              <span className="text-sm font-extrabold text-orange-600">₹{reports?.swiggyRevenue?.toFixed(2)}</span>
+          {loading ? (
+            <div className="space-y-4">
+              {[1, 2].map(n => (
+                <div key={n} className="h-12 bg-slate-100 rounded animate-pulse w-full"></div>
+              ))}
             </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center p-3 bg-orange-50/20 border border-orange-100 rounded-xl">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 font-sans">Swiggy Net Channel Sales</h4>
+                  <p className="text-[9px] text-slate-400 mt-0.5">15% commission subtracted</p>
+                </div>
+                <span className="text-sm font-extrabold text-orange-600">₹{reports?.swiggyRevenue?.toFixed(2)}</span>
+              </div>
 
-            <div className="flex justify-between items-center p-3 bg-rose-50/20 border border-rose-100 rounded-xl">
-              <div>
-                <h4 className="text-xs font-bold text-slate-800 font-sans">Zomato Net Channel Sales</h4>
-                <p className="text-[9px] text-slate-400 mt-0.5">18% commission subtracted</p>
+              <div className="flex justify-between items-center p-3 bg-rose-50/20 border border-rose-100 rounded-xl">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 font-sans">Zomato Net Channel Sales</h4>
+                  <p className="text-[9px] text-slate-400 mt-0.5">18% commission subtracted</p>
+                </div>
+                <span className="text-sm font-extrabold text-rose-600">₹{reports?.zomatoRevenue?.toFixed(2)}</span>
               </div>
-              <span className="text-sm font-extrabold text-rose-600">₹{reports?.zomatoRevenue?.toFixed(2)}</span>
             </div>
-          </div>
+          )}
         </div>
 
       </div>

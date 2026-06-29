@@ -80,7 +80,13 @@ export const getInventoryItems = async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    return res.status(200).json(items);
+    // Remove purchasePrice and sellingPrice from items if not required
+    const sanitizedItems = items.map(item => {
+      const { purchasePrice, sellingPrice, ...rest } = item;
+      return rest;
+    });
+
+    return res.status(200).json(sanitizedItems);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -94,8 +100,6 @@ export const createInventoryItem = async (req: Request, res: Response) => {
     unitType,
     currentStock,
     minimumStock,
-    purchasePrice,
-    sellingPrice,
     supplierName,
     supplierMobile,
     supplierId,
@@ -167,7 +171,7 @@ export const createInventoryItem = async (req: Request, res: Response) => {
         where: { id: item.id },
         data: {
           currentStock: newStock,
-          purchasePrice: Number(purchasePrice) || item.purchasePrice,
+          purchasePrice: 0,
           supplierId: resolvedSupplierId || item.supplierId,
           expiryDate: expDate || item.expiryDate,
           batchNumber: batchNumber || item.batchNumber,
@@ -182,8 +186,8 @@ export const createInventoryItem = async (req: Request, res: Response) => {
           unitType,
           minimumStock: mStock,
           currentStock: cStock,
-          purchasePrice: Number(purchasePrice) || 0,
-          sellingPrice: sellingPrice ? Number(sellingPrice) : null,
+          purchasePrice: 0,
+          sellingPrice: null,
           supplierId: resolvedSupplierId,
           expiryDate: expDate,
           storageLocation: storageLocation || 'Kitchen Store',
@@ -215,7 +219,8 @@ export const createInventoryItem = async (req: Request, res: Response) => {
       });
     }
 
-    return res.status(201).json(item);
+    const { purchasePrice: pPrice, sellingPrice: sPrice, ...sanitizedItem } = item;
+    return res.status(201).json(sanitizedItem);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -223,7 +228,7 @@ export const createInventoryItem = async (req: Request, res: Response) => {
 
 export const updateInventoryItem = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, categoryId, unitType, minimumStock, purchasePrice, sellingPrice, supplierId, expiryDate, storageLocation, status, batchNumber } = req.body;
+  const { name, categoryId, unitType, minimumStock, supplierId, expiryDate, storageLocation, status, batchNumber } = req.body;
   try {
     const existing = await prisma.restaurantInventoryItem.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ message: 'Item not found' });
@@ -239,8 +244,8 @@ export const updateInventoryItem = async (req: Request, res: Response) => {
         categoryId: categoryId || undefined,
         unitType: unitType || undefined,
         minimumStock: mStock,
-        purchasePrice: purchasePrice !== undefined ? Number(purchasePrice) : undefined,
-        sellingPrice: sellingPrice !== undefined ? (sellingPrice ? Number(sellingPrice) : null) : undefined,
+        purchasePrice: 0,
+        sellingPrice: null,
         supplierId: supplierId || null,
         expiryDate: expDate,
         storageLocation: storageLocation || null,
@@ -249,7 +254,8 @@ export const updateInventoryItem = async (req: Request, res: Response) => {
       }
     });
 
-    return res.status(200).json(item);
+    const { purchasePrice: pPrice, sellingPrice: sPrice, ...sanitizedItem } = item;
+    return res.status(200).json(sanitizedItem);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -799,31 +805,20 @@ export const downloadPOPdf = async (req: Request, res: Response) => {
     // Table Header
     doc.fontSize(10).font('Helvetica-Bold');
     doc.text('Item Name', 50, 320);
-    doc.text('Qty Ordered', 250, 320, { width: 100, align: 'right' });
-    doc.text('Cost / Unit', 350, 320, { width: 100, align: 'right' });
-    doc.text('Total Cost', 450, 320, { width: 100, align: 'right' });
+    doc.text('Qty Ordered', 350, 320, { width: 100, align: 'right' });
     
     doc.moveTo(50, 335).lineTo(550, 335).stroke();
     
     let y = 345;
-    let grandTotal = 0;
     doc.fontSize(10).font('Helvetica');
 
     po.items.forEach(it => {
-      const total = it.quantityOrdered * it.product.purchasePrice;
-      grandTotal += total;
-
       doc.text(it.product.name, 50, y);
-      doc.text(`${it.quantityOrdered} ${it.product.unitType}`, 250, y, { width: 100, align: 'right' });
-      doc.text(`₹${it.product.purchasePrice.toFixed(2)}`, 350, y, { width: 100, align: 'right' });
-      doc.text(`₹${total.toFixed(2)}`, 450, y, { width: 100, align: 'right' });
+      doc.text(`${it.quantityOrdered} ${it.product.unitType}`, 350, y, { width: 100, align: 'right' });
       y += 20;
     });
 
     doc.moveTo(50, y).lineTo(550, y).stroke();
-    y += 10;
-    doc.font('Helvetica-Bold').text('Grand Total:', 350, y, { width: 100, align: 'right' });
-    doc.text(`₹${grandTotal.toFixed(2)}`, 450, y, { width: 100, align: 'right' });
 
     doc.end();
   } catch (err: any) {
@@ -844,16 +839,11 @@ export const downloadPODocx = async (req: Request, res: Response) => {
 
     if (!po) return res.status(404).json({ message: 'PO not found' });
 
-    let grandTotal = 0;
     const itemRows = po.items.map(it => {
-      const total = it.quantityOrdered * it.product.purchasePrice;
-      grandTotal += total;
       return `
         <tr>
           <td style="padding:8px; border:1px solid #ddd;">${it.product.name}</td>
           <td style="padding:8px; border:1px solid #ddd; text-align:right;">${it.quantityOrdered} ${it.product.unitType}</td>
-          <td style="padding:8px; border:1px solid #ddd; text-align:right;">₹${it.product.purchasePrice.toFixed(2)}</td>
-          <td style="padding:8px; border:1px solid #ddd; text-align:right;">₹${total.toFixed(2)}</td>
         </tr>
       `;
     }).join('');
@@ -890,18 +880,12 @@ export const downloadPODocx = async (req: Request, res: Response) => {
             <tr>
               <th>Item Name</th>
               <th style="text-align:right;">Qty Ordered</th>
-              <th style="text-align:right;">Cost / Unit</th>
-              <th style="text-align:right;">Total Cost</th>
             </tr>
           </thead>
           <tbody>
             ${itemRows}
           </tbody>
         </table>
-        
-        <div class="total-box">
-          Grand Total: ₹${grandTotal.toFixed(2)}
-        </div>
       </body>
       </html>
     `;
