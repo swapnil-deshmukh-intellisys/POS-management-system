@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Package, X } from 'lucide-react';
+import { AlertTriangle, Package, X, CircleDollarSign, Calendar, Percent, Layers } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const inventoryRows = [
@@ -130,6 +130,335 @@ export const Inventory: React.FC = () => {
   const [selectedExpiryProduct, setSelectedExpiryProduct] = useState<any | null>(null);
   const [selectedSeasonalProduct, setSelectedSeasonalProduct] = useState<any | null>(null);
   const [selectedDemandMetric, setSelectedDemandMetric] = useState<any | null>(null);
+
+  const [tableFilter, setTableFilter] = useState<'all' | 'low_stock' | 'out_of_stock' | 'draft'>(() => {
+    const s = searchParams.get('status');
+    if (s === 'low_stock' || s === 'out_of_stock' || s === 'draft') return s;
+    return 'all';
+  });
+
+  const [expiryFilter, setExpiryFilter] = useState<'all' | '7_days' | '30_days' | 'expired'>('all');
+  const [expirySort, setExpirySort] = useState<'none' | 'value'>('none');
+  const [promoFilter, setPromoFilter] = useState<'all' | 'active' | 'upcoming' | 'expired'>('all');
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferForm, setTransferForm] = useState({
+    productName: '',
+    productId: '',
+    sourceWarehouse: 'Main Warehouse',
+    destinationWarehouse: 'Secondary Storage',
+    availableStock: 0,
+    transferQty: 0,
+    transferReason: ''
+  });
+
+  const [selectedDeadProduct, setSelectedDeadProduct] = useState<any | null>(null);
+  const [selectedSalesPeriod, setSelectedSalesPeriod] = useState('today');
+  const [salesSlideIndex, setSalesSlideIndex] = useState(0);
+  const [seasonalSlideIndex, setSeasonalSlideIndex] = useState(0);
+
+  const [topSellers, setTopSellers] = useState<{
+    daily: any[];
+    weekly: any[];
+    monthly: any[];
+  }>({
+    daily: [
+      { id: 'd1', name: 'Fresh Orange Juice', sold: 320, revenue: 16800, growth: 22, image: '' },
+      { id: 'd2', name: 'Croissant', sold: 280, revenue: 14000, growth: 15, image: '' }
+    ],
+    weekly: [
+      { id: 'w1', name: 'Premium Coffee', sold: 1890, revenue: 94500, growth: 28, image: '' },
+      { id: 'w2', name: 'Burger Combo', sold: 1260, revenue: 75600, growth: 18, image: '' },
+      { id: 'w3', name: 'Milk 1L', sold: 950, revenue: 47500, growth: 8, image: '' }
+    ],
+    monthly: [
+      { id: 'm1', name: 'Signature Pizza', sold: 7200, revenue: 432000, growth: 35, image: '' },
+      { id: 'm2', name: 'Family Meal Box', sold: 5890, revenue: 353400, growth: 26, image: '' }
+    ]
+  });
+
+  const [manualOffers, setManualOffers] = useState<any[]>([
+    { id: 'mo1', productId: 'p1', productName: 'Fresh Orange Juice', productImage: '', offerTitle: 'Summer Refresh Special', offerType: 'Percentage Discount', discountPercentage: 20, startDate: '2025-06-01', endDate: '2025-06-30', description: 'Beat the heat with 20% off!', isActive: true },
+    { id: 'mo2', productId: 'p2', productName: 'Premium Coffee', productImage: '', offerTitle: 'Coffee Lover Bundle', offerType: 'Buy X Get Y', buyQuantity: 2, freeQuantity: 1, startDate: '2025-06-05', endDate: '2025-06-25', description: 'Buy 2 get 1 free on our premium coffee!', isActive: true }
+  ]);
+
+  const [showManualOfferModal, setShowManualOfferModal] = useState(false);
+  const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
+  const [manualOfferForm, setManualOfferForm] = useState({
+    product: null as any,
+    offerTitle: '',
+    offerType: 'Percentage Discount' as 'Percentage Discount' | 'Flat Discount' | 'Buy X Get Y' | 'Bundle Offer' | 'Seasonal Offer',
+    discountPercentage: '',
+    flatDiscountAmount: '',
+    buyQuantity: '',
+    freeQuantity: '',
+    startDate: new Date().toISOString().slice(0, 10),
+    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    description: '',
+    isActive: true
+  });
+
+  const [rotationIndexes, setRotationIndexes] = useState({
+    daily: 0,
+    weekly: 0,
+    monthly: 0
+  });
+
+  useEffect(() => {
+    const s = searchParams.get('status');
+    if (s === 'low_stock' || s === 'out_of_stock' || s === 'draft') {
+      setTableFilter(s);
+    } else if (s === 'all') {
+      setTableFilter('all');
+    }
+  }, [searchParams]);
+
+  const handleSetTableFilter = (filter: 'all' | 'low_stock' | 'out_of_stock' | 'draft') => {
+    setTableFilter(filter);
+    const newParams = new URLSearchParams(searchParams);
+    if (filter === 'all') {
+      newParams.delete('status');
+    } else {
+      newParams.set('status', filter);
+    }
+    setSearchParams(newParams);
+  };
+
+  const getQty = (item: any) => {
+    const q = item.quantity !== undefined ? item.quantity : item.stock;
+    if (typeof q === 'number') return q;
+    if (typeof q === 'string') return parseInt(q, 10) || 0;
+    return 0;
+  };
+
+  const getStockStatusLocal = (product: any) => {
+    const quantity = getQty(product);
+    if (quantity <= 0) return 'OUT_OF_STOCK';
+    if (quantity <= 10) return 'LOW_STOCK';
+    return 'IN_STOCK';
+  };
+
+  const totalInventoryValue = useMemo(() => {
+    const items = productRows.length ? productRows : inventoryRows;
+    return items.reduce((sum, item) => {
+      return sum + (getQty(item) * Number(item.costPrice || item.purchasePrice || 15));
+    }, 0);
+  }, [productRows]);
+
+  const lowStockCount = useMemo(() => {
+    const items = productRows.length ? productRows : inventoryRows;
+    return items.filter(item => getStockStatusLocal(item) === 'LOW_STOCK').length;
+  }, [productRows]);
+
+  const outOfStockCount = useMemo(() => {
+    const items = productRows.length ? productRows : inventoryRows;
+    return items.filter(item => getStockStatusLocal(item) === 'OUT_OF_STOCK').length;
+  }, [productRows]);
+
+
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const renderKpiSkeleton = () => (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+      {[1, 2, 3, 4].map(i => (
+        <div key={i} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 min-h-[110px] flex flex-col justify-between animate-pulse">
+          <div className="flex justify-between items-start">
+            <div className="h-3 bg-slate-200 rounded-md w-24"></div>
+            <div className="w-8 h-8 rounded-lg bg-slate-200"></div>
+          </div>
+          <div>
+            <div className="h-6 bg-slate-200 rounded-md w-16 mt-2"></div>
+            <div className="h-2 bg-slate-200 rounded-md w-32 mt-2"></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const expiringSoonCount = useMemo(() => {
+    return liveAlerts.filter(alert => {
+      const days = Math.ceil((new Date(alert.expiryDate || alert.expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      return days >= 0 && days <= 30;
+    }).length;
+  }, [liveAlerts]);
+
+
+
+  const deadStockData = useMemo(() => {
+    const rawList = insights?.deadStock || [
+      { id: 'ds1', name: "Lay's Classic XL", sku: 'LAY-005', categoryName: 'Snacks & Chips', brand: "Lay's", quantity: 150, daysWithoutSales: 65, warehouse: 'Pune Warehouse', lastSoldDate: '25 Apr 2026', costPrice: 30, recommendation: 'Promotional Offer', supplier: 'PepsiCo Distributors' },
+      { id: 'ds2', name: 'Amul Gold Milk 1L', sku: 'MLK-003', categoryName: 'Dairy Products', brand: 'Amul', quantity: 60, daysWithoutSales: 35, warehouse: 'Main Warehouse', lastSoldDate: '25 May 2026', costPrice: 66, recommendation: 'Bundle with Fast-Moving Products', supplier: 'Amul Dairy Co.' },
+      { id: 'ds3', name: 'Premium Winter Jacket', sku: 'JKT-702', categoryName: 'Clothing & Apparel', brand: 'Columbia', quantity: 74, daysWithoutSales: 95, warehouse: 'Pune Warehouse', lastSoldDate: '26 Mar 2026', costPrice: 2500, recommendation: 'Clearance Sale', supplier: 'Columbia Sportswear' },
+      { id: 'ds4', name: 'DeLonghi Espresso Maker', sku: 'ESP-991', categoryName: 'Kitchen Appliances', brand: 'DeLonghi', quantity: 15, daysWithoutSales: 110, warehouse: 'Main Warehouse', lastSoldDate: '11 Mar 2026', costPrice: 12500, recommendation: 'Return to Supplier', supplier: 'DeLonghi Appliances Ltd.' },
+      { id: 'ds5', name: 'Philips LED Bulbs Multipack', sku: 'BLB-033', categoryName: 'Electronics & Home', brand: 'Philips', quantity: 120, daysWithoutSales: 40, warehouse: 'Mumbai Warehouse', lastSoldDate: '20 May 2026', costPrice: 299, recommendation: 'Promotional Offer', supplier: 'Philips Lighting' },
+      { id: 'ds6', name: 'Evian Glass Water 750ml', sku: 'H2O-012', categoryName: 'Beverages & Drinks', brand: 'Evian', quantity: 240, daysWithoutSales: 45, warehouse: 'Mumbai Warehouse', lastSoldDate: '14 May 2026', costPrice: 150, recommendation: 'Bundle with Fast-Moving Products', supplier: 'Danone Waters' },
+      { id: 'ds7', name: 'Hershey Syrup Chocolate', sku: 'SYR-112', categoryName: 'Snacks & Confectionery', brand: 'Hershey', quantity: 95, daysWithoutSales: 50, warehouse: 'Main Warehouse', lastSoldDate: '10 May 2026', costPrice: 180, recommendation: 'Promotional Offer', supplier: 'Hershey India' },
+      { id: 'ds8', name: 'Heinz Tomato Ketchup 1kg', sku: 'KTP-404', categoryName: 'Sauces & Condiments', brand: 'Heinz', quantity: 80, daysWithoutSales: 55, warehouse: 'Pune Warehouse', lastSoldDate: '05 May 2026', costPrice: 140, recommendation: 'Bundle with Fast-Moving Products', supplier: 'Heinz Foods' },
+      { id: 'ds9', name: 'Nestle Maggi 12-Pack', sku: 'NOD-220', categoryName: 'Packaged Foods', brand: 'Nestle', quantity: 300, daysWithoutSales: 32, warehouse: 'Mumbai Warehouse', lastSoldDate: '28 May 2026', costPrice: 168, recommendation: 'Promotional Offer', supplier: 'Nestle Distributors' },
+      { id: 'ds10', name: 'Tropicana Orange Juice 1L', sku: 'JUC-090', categoryName: 'Beverages & Drinks', brand: 'Tropicana', quantity: 180, daysWithoutSales: 38, warehouse: 'Main Warehouse', lastSoldDate: '22 May 2026', costPrice: 110, recommendation: 'Bundle with Fast-Moving Products', supplier: 'PepsiCo Beverages' },
+      { id: 'ds11', name: 'Nescafe Classic Jar 200g', sku: 'COF-101', categoryName: 'Beverages & Drinks', brand: 'Nescafe', quantity: 85, daysWithoutSales: 42, warehouse: 'Pune Warehouse', lastSoldDate: '18 May 2026', costPrice: 380, recommendation: 'Promotional Offer', supplier: 'Nestle India' },
+      { id: 'ds12', name: 'Cadbury Dairy Milk Silk', sku: 'CHO-009', categoryName: 'Snacks & Confectionery', brand: 'Cadbury', quantity: 140, daysWithoutSales: 31, warehouse: 'Mumbai Warehouse', lastSoldDate: '29 May 2026', costPrice: 80, recommendation: 'Bundle with Fast-Moving Products', supplier: 'Mondelez International' },
+      { id: 'ds13', name: 'Colgate MaxFresh 150g', sku: 'PST-055', categoryName: 'Personal Care', brand: 'Colgate', quantity: 200, daysWithoutSales: 48, warehouse: 'Main Warehouse', lastSoldDate: '12 May 2026', costPrice: 95, recommendation: 'Promotional Offer', supplier: 'Colgate-Palmolive' },
+      { id: 'ds14', name: 'Dettol Liquid Handwash', sku: 'SOAP-04', categoryName: 'Personal Care', brand: 'Dettol', quantity: 150, daysWithoutSales: 41, warehouse: 'Pune Warehouse', lastSoldDate: '19 May 2026', costPrice: 120, recommendation: 'Bundle with Fast-Moving Products', supplier: 'Reckitt Benckiser' },
+      { id: 'ds15', name: 'Gillette Mach 3 Razor', sku: 'SHV-222', categoryName: 'Personal Care', brand: 'Gillette', quantity: 65, daysWithoutSales: 75, warehouse: 'Mumbai Warehouse', lastSoldDate: '15 Apr 2026', costPrice: 450, recommendation: 'Clearance Sale', supplier: 'Procter & Gamble' },
+      { id: 'ds16', name: 'Whisper Ultra Clean XL', sku: 'HYG-110', categoryName: 'Personal Care', brand: 'Whisper', quantity: 125, daysWithoutSales: 36, warehouse: 'Main Warehouse', lastSoldDate: '24 May 2026', costPrice: 199, recommendation: 'Promotional Offer', supplier: 'Procter & Gamble' },
+      { id: 'ds17', name: 'Ariel Matic Front Load 2kg', sku: 'DET-099', categoryName: 'Home & Cleaning', brand: 'Ariel', quantity: 90, daysWithoutSales: 62, warehouse: 'Pune Warehouse', lastSoldDate: '28 Apr 2026', costPrice: 430, recommendation: 'Clearance Sale', supplier: 'Procter & Gamble' },
+      { id: 'ds18', name: 'Vim Dishwash Gel 500ml', sku: 'DET-012', categoryName: 'Home & Cleaning', brand: 'Vim', quantity: 110, daysWithoutSales: 34, warehouse: 'Mumbai Warehouse', lastSoldDate: '26 May 2026', costPrice: 105, recommendation: 'Bundle with Fast-Moving Products', supplier: 'Hindustan Unilever' },
+      { id: 'ds19', name: 'Britannia Marie Gold', sku: 'BSC-001', categoryName: 'Snacks & Chips', brand: 'Britannia', quantity: 250, daysWithoutSales: 33, warehouse: 'Main Warehouse', lastSoldDate: '27 May 2026', costPrice: 40, recommendation: 'Bundle with Fast-Moving Products', supplier: 'Britannia Industries' },
+      { id: 'ds20', name: 'Real Fruit Power Guava 1L', sku: 'JUC-022', categoryName: 'Beverages & Drinks', brand: 'Real', quantity: 130, daysWithoutSales: 39, warehouse: 'Pune Warehouse', lastSoldDate: '21 May 2026', costPrice: 120, recommendation: 'Promotional Offer', supplier: 'Dabur India Ltd.' },
+      { id: 'ds21', name: 'Kissan Mixed Fruit Jam 500g', sku: 'JAM-501', categoryName: 'Sauces & Condiments', brand: 'Kissan', quantity: 75, daysWithoutSales: 88, warehouse: 'Mumbai Warehouse', lastSoldDate: '02 Apr 2026', costPrice: 160, recommendation: 'Clearance Sale', supplier: 'Hindustan Unilever' },
+      { id: 'ds22', name: 'Pillsbury Atta 5kg', sku: 'FLR-105', categoryName: 'Packaged Foods', brand: 'Pillsbury', quantity: 55, daysWithoutSales: 115, warehouse: 'Main Warehouse', lastSoldDate: '06 Mar 2026', costPrice: 280, recommendation: 'Return to Supplier', supplier: 'General Mills India' }
+    ];
+
+    return rawList.map((item: any) => {
+      const qty = item.quantity !== undefined ? item.quantity : (item.stock || 0);
+      const price = item.costPrice || item.purchasePrice || 25;
+      const value = qty * price;
+      
+      let action = item.recommendation || 'Promotional Offer';
+      if (item.daysWithoutSales >= 90) {
+        action = 'Return to Supplier';
+      } else if (item.daysWithoutSales >= 60) {
+        action = 'Clearance Sale';
+      } else if (qty > 100) {
+        action = 'Bundle with Fast-Moving Products';
+      }
+
+      return {
+        ...item,
+        quantity: qty,
+        costPrice: price,
+        inventoryValue: value,
+        recommendation: action,
+      };
+    });
+  }, [insights?.deadStock]);
+
+
+  const filteredDeadStock = useMemo(() => {
+    return deadStockData;
+  }, [deadStockData]);
+
+  const highestSellingProduct = useMemo(() => {
+    const items = productRows.length ? productRows : inventoryRows;
+    if (!items.length) return null;
+    
+    let highestItem = items[0];
+    let maxSold = 0;
+
+    items.forEach(item => {
+      const soldVal = Number(item.soldCount || item.sold || item.sales || 0);
+      if (soldVal > maxSold) {
+        maxSold = soldVal;
+        highestItem = item;
+      }
+    });
+
+    const qtySold = maxSold || 240;
+    const price = Number(highestItem.costPrice || highestItem.purchasePrice || highestItem.price || 15);
+    const revenue = qtySold * price;
+
+    return {
+      name: highestItem.name || highestItem.product || 'N/A',
+      sold: qtySold,
+      revenue: revenue
+    };
+  }, [productRows]);
+
+  const expiring7DaysCount = useMemo(() => {
+    return liveAlerts.filter(alert => {
+      const d = getExpiryStatusInfo(alert.expiryDate).daysLeft;
+      return d >= 0 && d <= 7;
+    }).length;
+  }, [liveAlerts]);
+
+  const expiring30DaysCount = useMemo(() => {
+    return liveAlerts.filter(alert => {
+      const d = getExpiryStatusInfo(alert.expiryDate).daysLeft;
+      return d >= 0 && d <= 30;
+    }).length;
+  }, [liveAlerts]);
+
+  const expiredProductsCount = useMemo(() => {
+    return liveAlerts.filter(alert => {
+      const d = getExpiryStatusInfo(alert.expiryDate).daysLeft;
+      return d < 0;
+    }).length;
+  }, [liveAlerts]);
+
+  const totalExpiryValue = useMemo(() => {
+    return liveAlerts.reduce((sum: number, alert: any) => {
+      return sum + (alert.quantity * Number(alert.costPrice || 25));
+    }, 0);
+  }, [liveAlerts]);
+
+  const filteredExpiryAlerts = useMemo(() => {
+    let list = [...liveAlerts];
+    if (expiryFilter === '7_days') {
+      list = list.filter(alert => {
+        const d = getExpiryStatusInfo(alert.expiryDate).daysLeft;
+        return d >= 0 && d <= 7;
+      });
+    } else if (expiryFilter === '30_days') {
+      list = list.filter(alert => {
+        const d = getExpiryStatusInfo(alert.expiryDate).daysLeft;
+        return d >= 0 && d <= 30;
+      });
+    } else if (expiryFilter === 'expired') {
+      list = list.filter(alert => {
+        const d = getExpiryStatusInfo(alert.expiryDate).daysLeft;
+        return d < 0;
+      });
+    }
+
+    if (expirySort === 'value') {
+      list.sort((a, b) => {
+        const valA = a.quantity * Number(a.costPrice || 25);
+        const valB = b.quantity * Number(b.costPrice || 25);
+        return valB - valA;
+      });
+    }
+
+    return list;
+  }, [liveAlerts, expiryFilter, expirySort]);
+
+  const activePromotionsCount = useMemo(() => {
+    return manualOffers.filter(o => o.isActive && new Date(o.endDate) >= new Date()).length;
+  }, [manualOffers]);
+
+  const upcomingPromotionsCount = useMemo(() => {
+    return manualOffers.filter(o => new Date(o.startDate) > new Date()).length;
+  }, [manualOffers]);
+
+  const expiredPromotionsCount = useMemo(() => {
+    return manualOffers.filter(o => new Date(o.endDate) < new Date()).length;
+  }, [manualOffers]);
+
+  const productsInPromotionsCount = useMemo(() => {
+    const active = manualOffers.filter(o => o.isActive);
+    return new Set(active.map(o => o.productName)).size;
+  }, [manualOffers]);
+
+  const filteredPromotions = useMemo(() => {
+    let list = [...manualOffers];
+    if (promoFilter === 'active') {
+      list = list.filter(o => o.isActive && new Date(o.endDate) >= new Date());
+    } else if (promoFilter === 'upcoming') {
+      list = list.filter(o => new Date(o.startDate) > new Date());
+    } else if (promoFilter === 'expired') {
+      list = list.filter(o => new Date(o.endDate) < new Date());
+    }
+    return list;
+  }, [manualOffers, promoFilter]);
+
+  const totalProductsInStock = useMemo(() => {
+    const items = productRows.length ? productRows : inventoryRows;
+    return items.filter(item => getQty(item) > 0).length;
+  }, [productRows]);
 
   useEffect(() => {
     const openId = searchParams.get('openExpiryId');
@@ -311,71 +640,7 @@ export const Inventory: React.FC = () => {
   }, [insights, productRows, demoAlerts, resolvedProductIds]);
 
 
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [transferForm, setTransferForm] = useState({
-    productName: '',
-    productId: '',
-    sourceWarehouse: 'Main Warehouse',
-    destinationWarehouse: 'Secondary Storage',
-    availableStock: 0,
-    transferQty: 0,
-    transferReason: ''
-  });
 
-  // New global chat & dead stock state
-  const [selectedDeadProduct, setSelectedDeadProduct] = useState<any | null>(null);
-  const [selectedSalesPeriod, setSelectedSalesPeriod] = useState('today');
-  const [salesSlideIndex, setSalesSlideIndex] = useState(0);
-  const [seasonalSlideIndex, setSeasonalSlideIndex] = useState(0);
-
-  // New top sellers state
-  const [topSellers, setTopSellers] = useState<{
-    daily: any[];
-    weekly: any[];
-    monthly: any[];
-  }>({
-    daily: [
-      { id: 'd1', name: 'Fresh Orange Juice', sold: 320, revenue: 16800, growth: 22, image: '' },
-      { id: 'd2', name: 'Croissant', sold: 280, revenue: 14000, growth: 15, image: '' }
-    ],
-    weekly: [
-      { id: 'w1', name: 'Premium Coffee', sold: 1890, revenue: 94500, growth: 28, image: '' },
-      { id: 'w2', name: 'Burger Combo', sold: 1260, revenue: 75600, growth: 18, image: '' },
-      { id: 'w3', name: 'Milk 1L', sold: 950, revenue: 47500, growth: 8, image: '' }
-    ],
-    monthly: [
-      { id: 'm1', name: 'Signature Pizza', sold: 7200, revenue: 432000, growth: 35, image: '' },
-      { id: 'm2', name: 'Family Meal Box', sold: 5890, revenue: 353400, growth: 26, image: '' }
-    ]
-  });
-
-  // Manual Product Offers state
-  const [manualOffers, setManualOffers] = useState<any[]>([
-    { id: 'mo1', productId: 'p1', productName: 'Fresh Orange Juice', productImage: '', offerTitle: 'Summer Refresh Special', offerType: 'Percentage Discount', discountPercentage: 20, startDate: '2025-06-01', endDate: '2025-06-30', description: 'Beat the heat with 20% off!', isActive: true },
-    { id: 'mo2', productId: 'p2', productName: 'Premium Coffee', productImage: '', offerTitle: 'Coffee Lover Bundle', offerType: 'Buy X Get Y', buyQuantity: 2, freeQuantity: 1, startDate: '2025-06-05', endDate: '2025-06-25', description: 'Buy 2 get 1 free on our premium coffee!', isActive: true }
-  ]);
-  const [showManualOfferModal, setShowManualOfferModal] = useState(false);
-  const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
-  const [manualOfferForm, setManualOfferForm] = useState({
-    product: null as any,
-    offerTitle: '',
-    offerType: 'Percentage Discount' as 'Percentage Discount' | 'Flat Discount' | 'Buy X Get Y' | 'Bundle Offer' | 'Seasonal Offer',
-    discountPercentage: '',
-    flatDiscountAmount: '',
-    buyQuantity: '',
-    freeQuantity: '',
-    startDate: new Date().toISOString().slice(0, 10),
-    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-    description: '',
-    isActive: true
-  });
-
-  // Rotation index for each category
-  const [rotationIndexes, setRotationIndexes] = useState({
-    daily: 0,
-    weekly: 0,
-    monthly: 0
-  });
 
   const smartInventoryAnalytics = useMemo(() => {
     const fallback = {
@@ -921,7 +1186,7 @@ export const Inventory: React.FC = () => {
   return (
     <div className="w-full max-w-full min-w-0 space-y-8 select-none font-['Trebuchet_MS'] text-[15px]">
       {/* Hero Section */}
-      <div className="mb-8">
+      <div className="mb-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="inline-block mb-3 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full">
@@ -933,30 +1198,121 @@ export const Inventory: React.FC = () => {
         </div>
       </div>
 
+      {/* 4 Inventory Health KPI Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Low Stock Products */}
+        <div 
+          onClick={() => {
+            handleSetTableFilter('low_stock');
+            scrollToSection('stock-inventory-section');
+          }}
+          className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${tableFilter === 'low_stock' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Low Stock Products</span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+              <AlertTriangle className="w-4.5 h-4.5" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+              {lowStockCount} Items
+            </h3>
+            <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+              Total Low Stock Items
+            </span>
+          </div>
+        </div>
+
+        {/* Out of Stock Products */}
+        <div 
+          onClick={() => {
+            handleSetTableFilter('out_of_stock');
+            scrollToSection('stock-inventory-section');
+          }}
+          className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${tableFilter === 'out_of_stock' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Out of Stock Products</span>
+            <div className="w-8 h-8 rounded-lg bg-red-50 text-red-600 border border-red-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+              <Package className="w-4.5 h-4.5" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+              {outOfStockCount} Items
+            </h3>
+            <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+              Total Out of Stock Items
+            </span>
+          </div>
+        </div>
+
+        {/* Products Expiring Soon */}
+        <div 
+          onClick={() => scrollToSection('expiry-management-section')}
+          className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Products Expiring Soon</span>
+            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+              <AlertTriangle className="w-4.5 h-4.5" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+              {expiringSoonCount} Items
+            </h3>
+            <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+              Expiring in Next 30 Days
+            </span>
+          </div>
+        </div>
+
+        {/* Dead Stock Products */}
+        <div 
+          onClick={() => scrollToSection('dead-stock-monitoring-section')}
+          className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Dead Stock Products</span>
+            <div className="w-8 h-8 rounded-lg bg-slate-50 text-slate-600 border border-slate-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+              <Package className="w-4.5 h-4.5" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+              {deadStockData.length} Items
+            </h3>
+            <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+              No Sales (60-90 Days)
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* New Inventory Dashboard - Top Selling Products */}
       <div className="mb-8">
         <div className="flex min-w-0 gap-4 overflow-x-auto pb-2 [scrollbar-width:none] sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-3 [&::-webkit-scrollbar]:hidden">
           {/* Daily Highest Sale Card */}
           <div className="min-h-[150px] w-[270px] shrink-0 bg-white border border-slate-200/80 border-t-4 border-t-emerald-500 rounded-2xl p-4 shadow-sm transition-all duration-300 sm:w-auto">
             <div className="flex items-center justify-between mb-3 gap-3">
-              <h3 className="text-sm font-semibold text-slate-600">Daily Highest Selling Product</h3>
+              <h3 className="text-sm font-semibold text-slate-600">Highest Selling Product</h3>
               <div className="h-8 w-8 bg-emerald-50 rounded-lg flex items-center justify-center">
                 <svg className="h-4 w-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                 </svg>
               </div>
             </div>
-            {topSellers.daily[rotationIndexes.daily] && (
+            {highestSellingProduct && (
               <div>
-                <h4 className="mb-2 truncate text-lg font-semibold text-slate-900">{topSellers.daily[rotationIndexes.daily].name}</h4>
-                <p className="mb-2 text-xl font-bold text-emerald-600">₹{topSellers.daily[rotationIndexes.daily].revenue.toLocaleString('en-IN')}</p>
+                <h4 className="mb-2 truncate text-lg font-semibold text-slate-900">{highestSellingProduct.name}</h4>
+                <p className="mb-2 text-xl font-bold text-emerald-600">₹{highestSellingProduct.revenue.toLocaleString('en-IN')}</p>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
                   <svg className="h-3 w-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                   </svg>
-                  <span>+{topSellers.daily[rotationIndexes.daily].growth}% growth</span>
-                  <span className="mx-2">•</span>
-                  <span>{topSellers.daily[rotationIndexes.daily].sold.toLocaleString('en-IN')} units</span>
+                  <span>{highestSellingProduct.sold.toLocaleString('en-IN')} units sold</span>
                 </div>
               </div>
             )}
@@ -1281,7 +1637,96 @@ export const Inventory: React.FC = () => {
       </div>
 
       {/* Promotional Offers Section */}
-      <div className="relative z-0 mb-12 min-w-0 max-w-full">
+      <div id="promotional-offers-section" className="relative z-0 mb-12 min-w-0 max-w-full">
+        {/* Promotional Offers KPI Cards */}
+        {loading ? renderKpiSkeleton() : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+            {/* Active Promotional Offers */}
+            <div 
+              onClick={() => setPromoFilter('active')}
+              className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${promoFilter === 'active' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Active Offers</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+                  <Percent className="w-4.5 h-4.5" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+                  {activePromotionsCount} Active
+                </h3>
+                <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                  Running Store Campaigns
+                </span>
+              </div>
+            </div>
+
+            {/* Upcoming Promotions */}
+            <div 
+              onClick={() => setPromoFilter('upcoming')}
+              className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${promoFilter === 'upcoming' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Upcoming</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+                  <Calendar className="w-4.5 h-4.5" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+                  {upcomingPromotionsCount} Scheduled
+                </h3>
+                <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                  Starts In Future
+                </span>
+              </div>
+            </div>
+
+            {/* Expired Promotions */}
+            <div 
+              onClick={() => setPromoFilter('expired')}
+              className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${promoFilter === 'expired' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Expired Offers</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+                  <AlertTriangle className="w-4.5 h-4.5" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+                  {expiredPromotionsCount} Expired
+                </h3>
+                <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                  Campaigns Completed
+                </span>
+              </div>
+            </div>
+
+            {/* Products Included */}
+            <div 
+              onClick={() => setPromoFilter('all')}
+              className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${promoFilter === 'all' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Products</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+                  <Layers className="w-4.5 h-4.5" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+                  {productsInPromotionsCount} Products
+                </h3>
+                <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                  In Active Promotions
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="min-w-0 max-w-full bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           {/* Section Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 pb-4 border-b border-slate-100">
@@ -1319,7 +1764,7 @@ export const Inventory: React.FC = () => {
 
           {/* Offer Cards */}
           <div className="grid min-w-0 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
-            {manualOffers.slice(0, 3).map((offer) => {
+            {filteredPromotions.map((offer) => {
               return (
                 <div
                   key={offer.id}
@@ -1387,11 +1832,99 @@ export const Inventory: React.FC = () => {
           </div>
         </div>
       </div>
-
-      <div className="min-w-0 max-w-full">
+      <div id="stock-inventory-section" className="min-w-0 max-w-full">
 
         {/* Row 2 Column 1: Stock Inventory Forecast Table */}
         <div className="min-w-0 max-w-full space-y-6">
+          {/* KPI Stats Cards */}
+          {loading ? renderKpiSkeleton() : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Total Products in Stock */}
+              <div 
+                onClick={() => handleSetTableFilter('all')}
+                className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${tableFilter === 'all' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Products In Stock</span>
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+                    <Package className="w-4.5 h-4.5" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+                    {totalProductsInStock} Items
+                  </h3>
+                  <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                    Active Inventory
+                  </span>
+                </div>
+              </div>
+
+              {/* Low Stock Products */}
+              <div 
+                onClick={() => handleSetTableFilter('low_stock')}
+                className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${tableFilter === 'low_stock' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Low Stock Products</span>
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+                    <AlertTriangle className="w-4.5 h-4.5" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+                    {lowStockCount} Items
+                  </h3>
+                  <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                    Quantity &lt;= 10
+                  </span>
+                </div>
+              </div>
+
+              {/* Out of Stock Products */}
+              <div 
+                onClick={() => handleSetTableFilter('out_of_stock')}
+                className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${tableFilter === 'out_of_stock' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Out Of Stock Products</span>
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+                    <AlertTriangle className="w-4.5 h-4.5" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+                    {outOfStockCount} Items
+                  </h3>
+                  <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                    Quantity = 0
+                  </span>
+                </div>
+              </div>
+
+              {/* Total Inventory Value */}
+              <div 
+                onClick={() => handleSetTableFilter('all')}
+                className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer border-slate-200`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Inventory Value</span>
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+                    <CircleDollarSign className="w-4.5 h-4.5" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+                    ₹{totalInventoryValue.toLocaleString('en-IN')}
+                  </h3>
+                  <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                    Valuation
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Inventory Forecast Table */}
           <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-100/80 bg-white p-5 shadow-sm">
             <div className="mb-5 flex flex-col gap-4 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1422,7 +1955,15 @@ export const Inventory: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {(productRows.length ? productRows : inventoryRows).map((row: any) => {
+                  {(productRows.length ? productRows : inventoryRows)
+                    .filter((row: any) => {
+                      const rowStatus = row.status || getStockStatus(row);
+                      if (tableFilter === 'low_stock') return rowStatus === 'LOW_STOCK';
+                      if (tableFilter === 'out_of_stock') return rowStatus === 'OUT_OF_STOCK';
+                      if (tableFilter === 'draft') return row.status === 'DRAFT';
+                      return true;
+                    })
+                    .map((row: any) => {
                     const quantity = row.quantity !== undefined ? row.quantity : row.stock;
                     const stockLabel = typeof quantity === 'number' ? `${quantity} PCS` : quantity;
                     const rowStatus = row.status || getStockStatus(row);
@@ -1486,7 +2027,7 @@ export const Inventory: React.FC = () => {
       </div>
 
       {/* Dead Stock Monitoring Section */}
-      <div className="mt-8">
+      <div id="dead-stock-monitoring-section" className="mt-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-805 mb-6 gap-4">
           <div>
             <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">Dead Stock Monitoring</h2>
@@ -1498,118 +2039,101 @@ export const Inventory: React.FC = () => {
               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
             </span>
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-              {(insights?.deadStock || []).length || 2} Products Idle
+              {filteredDeadStock.length} Products Displayed
             </span>
           </div>
         </div>
 
-        <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-3 xl:items-start">
-          <div className="hidden">
-            <span>Product</span>
-            <span>Category</span>
-            <span>Stock</span>
-            <span>Last sold</span>
-            <span>Unsold days</span>
-            <span>Status</span>
-            <span>Actions</span>
-          </div>
-          {/* Left Column: Dead Stock Audit Feed */}
-          <div className="min-w-0 space-y-4 xl:col-span-2">
-            {(insights?.deadStock || [
-              { id: '1', name: 'Winter Jackets', categoryName: 'Clothing', quantity: 74, daysWithoutSales: 92, warehouse: 'Pune Warehouse', lastSoldDate: '12 Apr 2026', recommendation: 'Apply combo offer or transfer stock', seasonalProduct: true, reason: 'Seasonal Leftover' },
-              { id: '2', name: 'Premium Espresso Maker', categoryName: 'Kitchen Appliances', quantity: 15, daysWithoutSales: 62, warehouse: 'Main Warehouse', lastSoldDate: '18 Apr 2026', recommendation: 'Run 20% flash discount', reason: 'No Sales in 60 Days' },
-              { id: '3', name: 'Standard Lightbulbs Box', categoryName: 'Electronics', quantity: 120, daysWithoutSales: 35, warehouse: 'Mumbai Warehouse', lastSoldDate: '28 Apr 2026', recommendation: 'Transfer to Pune branch', reason: 'Very Slow Movement' }
-            ]).map((item: any) => {
-              const currentProd = productRows.find(p => p.id === item.id || p.sku === item.id || p.name === item.name) || item;
-              const hasOffer = currentProd.isOnOffer || currentProd.isOnDiscount || currentProd.offerLabel;
-              const isTransferred = currentProd.expiryActionStatus === 'transferred' || currentProd.actionTaken === 'transferred';
+        {/* Dead Stock Table */}
+        <div className="w-full bg-white border border-slate-200 rounded-2xl p-5 shadow-sm overflow-hidden">
+          <div className="max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <table className="w-full min-w-[900px] border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-450 text-xs font-bold uppercase tracking-wider text-left">
+                  <th className="px-4 py-3.5 font-semibold text-slate-700">Product Name</th>
+                  <th className="px-4 py-3.5 font-semibold text-slate-700">SKU</th>
+                  <th className="px-4 py-3.5 font-semibold text-slate-700">Category</th>
+                  <th className="px-4 py-3.5 font-semibold text-slate-700">Current Stock</th>
+                  <th className="px-4 py-3.5 font-semibold text-slate-700">Last Sold</th>
+                  <th className="px-4 py-3.5 font-semibold text-slate-700">Days Unsold</th>
+                  <th className="px-4 py-3.5 font-semibold text-slate-700">Inventory Value</th>
+                  <th className="px-4 py-3.5 font-semibold text-slate-700">Suggested Action</th>
+                  <th className="px-4 py-3.5 font-semibold text-slate-700 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredDeadStock.map((item: any) => {
+                  const currentProd = productRows.find(p => p.id === item.id || p.sku === item.id || p.name === item.name) || item;
+                  const hasOffer = currentProd.isOnOffer || currentProd.isOnDiscount || currentProd.offerLabel;
+                  const isTransferred = currentProd.expiryActionStatus === 'transferred' || currentProd.actionTaken === 'transferred';
 
-              // Filter out fully resolved items from active feed
-              if (hasOffer || isTransferred) return null;
+                  // Filter out fully resolved items from active feed
+                  if (hasOffer || isTransferred) return null;
 
-              let statusText = item.reason || 'No Sales in 30 Days';
-              if (item.seasonalProduct) {
-                statusText = 'Seasonal Leftover';
-              } else if (item.daysWithoutSales >= 90) {
-                statusText = 'Very Slow Movement';
-              } else if (item.daysWithoutSales >= 60) {
-                statusText = 'No Sales in 60 Days';
-              } else if (item.daysWithoutSales >= 30) {
-                statusText = 'No Sales in 30 Days';
-              }
-
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => setSelectedDeadProduct(item)}
-                  className="flex min-w-0 cursor-pointer flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 transition-all duration-200 hover:bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900/40 md:flex-row md:items-center"
-                >
-                  {/* Left: Product Info */}
-                  <div className="flex min-w-0 items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 border border-slate-200/50 dark:border-slate-700/50">
-                      <Package className="w-5 h-5 text-slate-400" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-base font-semibold text-slate-900 dark:text-white truncate">{item.name}</h3>
-                        <span className="px-2.5 py-0.5 text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full">
+                  return (
+                    <tr 
+                      key={item.id} 
+                      onClick={() => setSelectedDeadProduct(item)}
+                      className="hover:bg-slate-50/60 transition-all duration-150 cursor-pointer text-sm font-['Trebuchet_MS']"
+                    >
+                      <td className="px-4 py-4 font-semibold text-slate-900">
+                        {item.name}
+                      </td>
+                      <td className="px-4 py-4 text-slate-500 font-mono">
+                        {item.sku || 'N/A'}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="px-2 py-0.5 text-[11px] font-medium bg-slate-100 text-slate-600 rounded-md">
                           {item.categoryName || 'General'}
                         </span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        Branch: <span className="font-medium text-slate-700 dark:text-slate-300">{item.warehouse}</span> • Last Sold: <span className="font-medium text-slate-700 dark:text-slate-300">{item.lastSoldDate}</span>
-                      </p>
-                      <p className="hidden">{item.categoryName || 'General'}</p>
-                    </div>
-                  </div>
-
-                  <p className="hidden">{item.categoryName || 'General'}</p>
-                  <p className="hidden">{item.quantity} Units</p>
-                  <p className="hidden">{item.lastSoldDate || 'Not sold'}</p>
-                  <p className="hidden">{item.daysWithoutSales} Days</p>
-                  <p className="hidden">{statusText}</p>
-
-                  <div className="hidden">
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openOfferModal(item);
-                      }}
-                      className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800"
-                    >
-                      Create Offer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openTransferModal(item);
-                      }}
-                      className="h-9 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-850 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                    >
-                      Transfer Stock
-                    </button>
-                  </div>
-
-                  {/* Right: Stock Info & Status Tag */}
-                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 md:justify-end">
-                    <div className="text-left md:text-right">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-white">{item.quantity} Units Idle</p>
-                      <p className="text-xs text-slate-550 dark:text-slate-400 mt-0.5">{item.daysWithoutSales} Days Unsold</p>
-                    </div>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                      {statusText}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                      </td>
+                      <td className="px-4 py-4 font-medium text-slate-800">
+                        {item.quantity} Units
+                      </td>
+                      <td className="px-4 py-4 text-slate-500">
+                        {item.lastSoldDate || 'Never'}
+                      </td>
+                      <td className="px-4 py-4 font-semibold text-rose-600">
+                        {item.daysWithoutSales} Days
+                      </td>
+                      <td className="px-4 py-4 font-bold text-slate-900">
+                        ₹{item.inventoryValue.toLocaleString('en-IN')}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          item.recommendation === 'Return to Supplier' 
+                            ? 'bg-orange-50 text-orange-700 border border-orange-100' 
+                            : item.recommendation === 'Clearance Sale' 
+                              ? 'bg-rose-50 text-rose-700 border border-rose-100' 
+                              : item.recommendation === 'Bundle Offer' 
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' 
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                        }`}>
+                          {item.recommendation}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => openOfferModal(item)}
+                          className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition duration-200"
+                        >
+                          Take Action
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredDeadStock.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="text-center py-8 text-slate-400 font-medium">
+                      No dead stock items found matching the selected filter.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-
-          {/* Right Column: Permanent Insights Panel */}
-          
         </div>
       </div>
 
@@ -1960,7 +2484,108 @@ export const Inventory: React.FC = () => {
       })()}
 
       {/* Expiry Management Center */}
-      <div className="min-w-0 xl:col-span-3 mt-6">
+      <div id="expiry-management-section" className="min-w-0 xl:col-span-3 mt-6">
+        {/* Expiry KPI Cards */}
+        {loading ? renderKpiSkeleton() : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+            {/* Expiring in 7 Days */}
+            <div 
+              onClick={() => {
+                setExpiryFilter('7_days');
+                setExpirySort('none');
+              }}
+              className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${expiryFilter === '7_days' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Expiring 7 Days</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+                  <Calendar className="w-4.5 h-4.5" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+                  {expiring7DaysCount} Items
+                </h3>
+                <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                  Urgent Actions Required
+                </span>
+              </div>
+            </div>
+
+            {/* Expiring in 30 Days */}
+            <div 
+              onClick={() => {
+                setExpiryFilter('30_days');
+                setExpirySort('none');
+              }}
+              className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${expiryFilter === '30_days' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Expiring 30 Days</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+                  <Calendar className="w-4.5 h-4.5" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+                  {expiring30DaysCount} Items
+                </h3>
+                <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                  Monitor Closely
+                </span>
+              </div>
+            </div>
+
+            {/* Expired Products */}
+            <div 
+              onClick={() => {
+                setExpiryFilter('expired');
+                setExpirySort('none');
+              }}
+              className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${expiryFilter === 'expired' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Expired Products</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+                  <AlertTriangle className="w-4.5 h-4.5" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+                  {expiredProductsCount} Items
+                </h3>
+                <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                  Requires Disposal
+                </span>
+              </div>
+            </div>
+
+            {/* Total Expiry Value */}
+            <div 
+              onClick={() => {
+                setExpiryFilter('all');
+                setExpirySort('value');
+              }}
+              className={`bg-white border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${expirySort === 'value' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Expiry Value</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0">
+                  <CircleDollarSign className="w-4.5 h-4.5" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-2">
+                  ₹{totalExpiryValue.toLocaleString('en-IN')}
+                </h3>
+                <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                  Potential Loss Value
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className={`${glassStyle} rounded-3xl p-6 shadow-xl border border-slate-100 dark:border-slate-800 font-sans`}>
           {/* Header Area */}
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-850 mb-6">
@@ -1979,7 +2604,7 @@ export const Inventory: React.FC = () => {
 
           {/* List/Feed Layout */}
           <div className="space-y-4">
-            {liveAlerts.map((alert: any, idx: number) => {
+            {filteredExpiryAlerts.map((alert: any, idx: number) => {
               const info = getExpiryStatusInfo(alert.expiryDate);
               // Human readable countdown labels
               let countdownText = "";

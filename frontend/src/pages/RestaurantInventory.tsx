@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Mail, Phone, Printer, Edit, ShoppingCart, X, AlertTriangle, Search,
   ArrowUpDown, ChevronLeft, ChevronRight, Plus, Activity, Truck, Calendar, Package
@@ -80,6 +81,7 @@ const computeDummyProducts = () => {
 
 export const RestaurantInventory: React.FC = () => {
   const auth = useAuth();
+  const navigate = useNavigate();
   const isAdmin = !!auth.user;
 
   // State management
@@ -564,6 +566,13 @@ ${poForm.notes}
   return (
     <div className="py-6 space-y-8 md:space-y-10 text-black min-h-screen w-full text-left">
       
+      {/* Breadcrumb Navigation */}
+      <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+        <span className="hover:text-slate-800 transition cursor-pointer" onClick={() => navigate('/restaurant')}>Restaurant</span>
+        <ChevronRight className="w-3 h-3 text-slate-400" />
+        <span className="text-emerald-705 font-extrabold">Inventory</span>
+      </div>
+
       {/* Page Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>

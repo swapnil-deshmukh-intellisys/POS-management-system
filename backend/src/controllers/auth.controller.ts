@@ -280,9 +280,80 @@ const seedRestaurantData = async (restaurantId: string) => {
   }
 };
 
+const seedDummyEmployees = async (restaurantId: string) => {
+  const hashedPassword = await bcrypt.hash('123456', 10);
+  
+  const dummySpecs = [
+    { name: 'Alice Admin', role: 'Admin', dept: 'Administration', count: 1 },
+    { name: 'Bob Manager', role: 'Manager', dept: 'Management', count: 3 },
+    { name: 'Ethan Waiter', role: 'Waiter', dept: 'Service', count: 6 },
+    { name: 'Kevin Kitchen Staff', role: 'Kitchen Staff', dept: 'Kitchen', count: 4 },
+    { name: 'Oliver Chef', role: 'Chef', dept: 'Kitchen', count: 2 },
+    { name: 'Quincy Cashier', role: 'Cashier', dept: 'Billing', count: 2 },
+    { name: 'Steve Inventory', role: 'Inventory Manager', dept: 'Inventory', count: 2 },
+    { name: 'Umar Housekeeping', role: 'Housekeeping', dept: 'Maintenance', count: 2 },
+    { name: 'Walter Security', role: 'Security', dept: 'Security', count: 2 }
+  ];
+
+  let phoneCounter = 9000000000;
+
+  for (const spec of dummySpecs) {
+    for (let i = 1; i <= spec.count; i++) {
+      const name = spec.count === 1 ? spec.name : `${spec.name.split(' ')[0]} ${spec.role} ${i}`;
+      const email = `${spec.role.toLowerCase().replace(' ', '_')}_demo${i}@restaurant.com`.toLowerCase();
+      const phone = String(phoneCounter++);
+      const empId = `EMP-${spec.role.toUpperCase().replace(' ', '').slice(0, 3)}-${100 + i}`;
+
+      // Check if employee already exists by email
+      const existingEmp = await prisma.employee.findFirst({
+        where: { email, restaurantId }
+      });
+
+      if (!existingEmp) {
+        // Create User first
+        let userRole: 'ADMIN' | 'MANAGER' | 'CASHIER' = 'CASHIER';
+        if (spec.role === 'Admin') userRole = 'ADMIN';
+        else if (spec.role === 'Manager') userRole = 'MANAGER';
+
+        const user = await prisma.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            name,
+            role: userRole,
+            businessType: 'Restaurant',
+            businessName: 'Demo Restaurant',
+            status: 'Active',
+            avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${email}`
+          }
+        });
+
+        // Create Employee
+        await prisma.employee.create({
+          data: {
+            employeeId: empId,
+            name,
+            phone,
+            email,
+            department: spec.dept,
+            role: spec.role,
+            joiningDate: new Date(),
+            shift: 'Day',
+            employmentType: 'Full-time',
+            salary: 35000,
+            status: 'Active',
+            restaurantId,
+            userId: user.id
+          }
+        });
+      }
+    }
+  }
+};
+
 export const login = async (req: AuthenticatedRequest, res: Response) => {
-  const { email, password, businessType, businessName } = req.body;
-  console.log(`[Login Attempt] Email: "${email}", Password: "${password}", Business Type: "${businessType}", Business Name: "${businessName}"`);
+  const { email, password, businessType, businessName, role } = req.body;
+  console.log(`[Login Attempt] Email: "${email}", Password: "${password}", Business Type: "${businessType}", Business Name: "${businessName}", Role: "${role}"`);
 
   try {
     if (!email || !password) {
@@ -292,9 +363,113 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
+    if (normalizedEmail === 'demo@restaurant.com' && password === '123456') {
+      const selectedRole = role || 'Admin';
+      const finalBusinessName = businessName || 'Demo Restaurant';
+      
+      let restaurant = await prisma.restaurant.findFirst({
+        where: { name: finalBusinessName }
+      });
+      if (!restaurant) {
+        restaurant = await prisma.restaurant.create({
+          data: {
+            name: finalBusinessName,
+            type: 'RESTAURANT',
+            address: 'Main Street Boulevard'
+          }
+        });
+        await seedRestaurantData(restaurant.id);
+      }
+      
+      await seedDummyEmployees(restaurant.id);
+      
+      let employee = await prisma.employee.findFirst({
+        where: {
+          role: {
+            equals: selectedRole,
+            mode: 'insensitive'
+          },
+          restaurantId: restaurant.id
+        },
+        include: { user: true }
+      });
+
+      if (!employee) {
+        employee = await prisma.employee.findFirst({
+          where: {
+            role: {
+              contains: selectedRole.substring(0, 4),
+              mode: 'insensitive'
+            },
+            restaurantId: restaurant.id
+          },
+          include: { user: true }
+        });
+      }
+
+      if (!employee) {
+        employee = await prisma.employee.findFirst({
+          where: { restaurantId: restaurant.id },
+          include: { user: true }
+        });
+      }
+      
+      if (employee && employee.user) {
+        const user = employee.user;
+        const token = jwt.sign(
+          {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            employeeRole: employee.role,
+            name: user.name,
+            branchId: user.branchId,
+            businessType: 'Restaurant',
+            businessName: finalBusinessName,
+            restaurantId: restaurant.id
+          },
+          JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+        
+        await prisma.loginSession.create({
+          data: {
+            token,
+            userId: user.id,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          },
+        });
+        
+        return res.status(200).json({
+          token,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            avatar: user.avatar,
+            businessType: 'Restaurant',
+            businessName: finalBusinessName,
+            restaurantId: restaurant.id,
+            branch: null,
+            employee: {
+              id: employee.id,
+              employeeId: employee.employeeId,
+              name: employee.name,
+              phone: employee.phone,
+              email: employee.email,
+              department: employee.department,
+              role: employee.role,
+              status: employee.status
+            }
+          }
+        });
+      }
+    }
+
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
-      include: { branch: true },
+      include: { branch: true, employee: true },
     });
 
     if (!user) {
@@ -359,6 +534,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
         id: updatedUser.id,
         email: updatedUser.email,
         role: updatedUser.role,
+        employeeRole: user.employee?.role || null,
         name: updatedUser.name,
         branchId: updatedUser.branchId,
         businessType: updatedUser.businessType,
@@ -390,6 +566,16 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
         businessName: updatedUser.businessName,
         restaurantId,
         branch: updatedUser.branchId ? { id: updatedUser.branchId, name: 'Main Branch' } : null,
+        employee: user.employee ? {
+          id: user.employee.id,
+          employeeId: user.employee.employeeId,
+          name: user.employee.name,
+          phone: user.employee.phone,
+          email: user.employee.email,
+          department: user.employee.department,
+          role: user.employee.role,
+          status: user.employee.status
+        } : null
       },
     });
   } catch (error: any) {
@@ -455,7 +641,7 @@ export const me = async (req: AuthenticatedRequest, res: Response) => {
 
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      include: { branch: true },
+      include: { branch: true, employee: true },
     });
 
     if (!user) {
@@ -491,6 +677,16 @@ export const me = async (req: AuthenticatedRequest, res: Response) => {
         businessName: user.businessName,
         restaurantId,
         branch: user.branch ? { id: user.branch.id, name: user.branch.name } : null,
+        employee: user.employee ? {
+          id: user.employee.id,
+          employeeId: user.employee.employeeId,
+          name: user.employee.name,
+          phone: user.employee.phone,
+          email: user.employee.email,
+          department: user.employee.department,
+          role: user.employee.role,
+          status: user.employee.status
+        } : null
       },
     });
   } catch (error: any) {
@@ -759,20 +955,21 @@ export const googleLogin = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Update lastLogin
-    user = await prisma.user.update({
+    const finalUser = await prisma.user.update({
       where: { id: user.id },
       data: { lastLogin: new Date() },
-      include: { branch: true },
+      include: { branch: true, employee: true },
     });
 
     // Sign JWT session
     const token = jwt.sign(
       {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        name: user.name,
-        branchId: user.branchId,
+        id: finalUser.id,
+        email: finalUser.email,
+        role: finalUser.role,
+        employeeRole: finalUser.employee?.role || null,
+        name: finalUser.name,
+        branchId: finalUser.branchId,
       },
       JWT_SECRET,
       { expiresIn: '24h' }
@@ -782,7 +979,7 @@ export const googleLogin = async (req: AuthenticatedRequest, res: Response) => {
     await prisma.loginSession.create({
       data: {
         token,
-        userId: user.id,
+        userId: finalUser.id,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       },
     });
@@ -790,12 +987,22 @@ export const googleLogin = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(200).json({
       token,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        avatar: user.avatar,
-        branch: user.branch ? { id: user.branch.id, name: user.branch.name } : null,
+        id: finalUser.id,
+        email: finalUser.email,
+        name: finalUser.name,
+        role: finalUser.role,
+        avatar: finalUser.avatar,
+        branch: finalUser.branch ? { id: finalUser.branch.id, name: finalUser.branch.name } : null,
+        employee: finalUser.employee ? {
+          id: finalUser.employee.id,
+          employeeId: finalUser.employee.employeeId,
+          name: finalUser.employee.name,
+          phone: finalUser.employee.phone,
+          email: finalUser.employee.email,
+          department: finalUser.employee.department,
+          role: finalUser.employee.role,
+          status: finalUser.employee.status
+        } : null
       },
     });
   } catch (error: any) {

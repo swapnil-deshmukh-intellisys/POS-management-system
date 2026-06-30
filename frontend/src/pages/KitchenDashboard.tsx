@@ -8,7 +8,9 @@ import {
   Clock,
   UserCheck,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 
 const dummyPreparingOrders = [
@@ -178,7 +180,13 @@ export const KitchenDashboard: React.FC = () => {
     eventSource.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.event === 'ORDER_MUTATED' || payload.event === 'STOCK_REQUEST_MUTATED') {
+        if (
+          payload.type === 'NEW_ORDER' ||
+          payload.type === 'ORDER_STATUS_UPDATE' ||
+          payload.type === 'ORDER_MUTATED' ||
+          payload.event === 'ORDER_MUTATED' ||
+          payload.event === 'STOCK_REQUEST_MUTATED'
+        ) {
           fetchMetrics();
         }
       } catch (e) {
@@ -280,24 +288,7 @@ export const KitchenDashboard: React.FC = () => {
 
   const finalPreparationQueue = [...activeDbOrders, ...dummyPreparingOrders];
 
-  // Helper for generating custom skeleton panels
-  const renderSkeletonPanel = () => (
-    <div className="space-y-6 max-w-7xl mx-auto p-4 animate-pulse">
-      <div className="h-40 bg-slate-200 dark:bg-slate-800 rounded-3xl w-full"></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="h-80 bg-slate-200 dark:bg-slate-800 rounded-3xl"></div>
-        <div className="h-80 bg-slate-200 dark:bg-slate-800 rounded-3xl"></div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="h-80 bg-slate-200 dark:bg-slate-800 rounded-3xl"></div>
-        <div className="h-80 bg-slate-200 dark:bg-slate-800 rounded-3xl"></div>
-      </div>
-    </div>
-  );
 
-  if (loading) {
-    return renderSkeletonPanel();
-  }
 
   return (
     <div className="space-y-8 text-slate-900 dark:text-slate-100 max-w-7xl mx-auto p-4 text-left font-sans">
@@ -318,53 +309,91 @@ export const KitchenDashboard: React.FC = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          <div 
-            onClick={() => navigate('/restaurant/kitchen?status=PREPARING')}
-            className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-xl border border-slate-100 dark:border-slate-750 shadow-sm hover:shadow-md hover:scale-[1.02] cursor-pointer transition-all duration-300 flex flex-col justify-between"
-          >
-            <span className="text-xs text-slate-450 block uppercase tracking-wider font-semibold">Active Prep Queue</span>
-            <strong className="text-3xl font-semibold text-amber-605 mt-2 block leading-none">
-              {orders.filter(o => o.status === 'PREPARING' || o.status === 'ACCEPTED' || o.status === 'NEW').length}
-            </strong>
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 min-h-[110px] flex flex-col justify-between animate-pulse">
+                <div className="flex justify-between items-start">
+                  <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-md w-24"></div>
+                  <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-750"></div>
+                </div>
+                <div>
+                  <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded-md w-16 mt-2"></div>
+                  <div className="h-2 bg-slate-200 dark:bg-slate-750 rounded-md w-32 mt-2"></div>
+                </div>
+              </div>
+            ))}
           </div>
-          <div 
-            onClick={() => navigate('/restaurant/inventory-requests')}
-            className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-xl border border-slate-100 dark:border-slate-750 shadow-sm hover:shadow-md hover:scale-[1.02] cursor-pointer transition-all duration-300 flex flex-col justify-between"
-          >
-            <span className="text-xs text-slate-450 block uppercase tracking-wider font-semibold">Recent Requests</span>
-            <strong className="text-3xl font-semibold text-black dark:text-white mt-2 block leading-none">
-              {requests.length}
-            </strong>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { 
+                label: 'Preparing Orders', 
+                count: orders.filter(o => o.status === 'PREPARING' || o.status === 'ACCEPTED' || o.status === 'NEW').length, 
+                route: '/restaurant/kitchen?filter=PREPARING', 
+                desc: 'Active preparation queue',
+                icon: Clock,
+                bgIcon: 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 border-amber-100 dark:border-amber-900/40',
+                hoverIcon: 'group-hover:bg-amber-600',
+                activeColor: 'border-amber-500 ring-2 ring-amber-100 dark:ring-amber-955/50'
+              },
+              { 
+                label: 'Pending Requests', 
+                count: requests.filter(r => r.status === 'Pending' || r.status === 'Pending Approval').length, 
+                route: '/restaurant/inventory-requests?filter=Pending Approval', 
+                desc: 'Awaiting store approval',
+                icon: AlertCircle,
+                bgIcon: 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 border-blue-100 dark:border-blue-900/40',
+                hoverIcon: 'group-hover:bg-blue-600',
+                activeColor: 'border-blue-500 ring-2 ring-blue-100 dark:ring-blue-955/50'
+              },
+              { 
+                label: 'Completed Orders', 
+                count: orders.filter(o => o.status === 'COMPLETED' || o.status === 'DELIVERED').length, 
+                route: '/restaurant/kitchen?filter=COMPLETED', 
+                desc: 'Served & completed today',
+                icon: CheckCircle2,
+                bgIcon: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 border-emerald-100 dark:border-emerald-900/40',
+                hoverIcon: 'group-hover:bg-emerald-600',
+                activeColor: 'border-emerald-500 ring-2 ring-emerald-100 dark:ring-emerald-955/50'
+              },
+              { 
+                label: 'Inventory Alerts', 
+                count: requests.length, 
+                route: '/restaurant/inventory-requests', 
+                desc: 'Total kitchen stock requests',
+                icon: AlertTriangle,
+                bgIcon: 'bg-purple-50 dark:bg-purple-950/30 text-purple-600 border-purple-100 dark:border-purple-900/40',
+                hoverIcon: 'group-hover:bg-purple-600',
+                activeColor: 'border-purple-500 ring-2 ring-purple-100 dark:ring-purple-955/50'
+              }
+            ].map((card, idx) => {
+              const Icon = card.icon;
+              return (
+                <div
+                  key={idx}
+                  onClick={() => navigate(card.route)}
+                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 dark:hover:bg-slate-900/50 active:scale-[0.98] transition-all duration-300 group cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider block">{card.label}</span>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center border shadow-xs group-hover:text-white transition-all duration-300 shrink-0 ${card.bgIcon} ${card.hoverIcon}`}>
+                      <Icon className="w-4.5 h-4.5" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-none mt-2">
+                      {card.count}
+                    </h3>
+                    <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                      {card.desc}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div 
-            onClick={() => navigate('/restaurant/suppliers?tab=requests&search=Pending')}
-            className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-xl border border-slate-100 dark:border-slate-750 shadow-sm hover:shadow-md hover:scale-[1.02] cursor-pointer transition-all duration-300 flex flex-col justify-between"
-          >
-            <span className="text-xs text-slate-450 block uppercase tracking-wider font-semibold">Pending Requests</span>
-            <strong className="text-3xl font-semibold text-blue-600 mt-2 block leading-none">
-              {requests.filter(r => r.status === 'Pending' || r.status === 'Pending Approval').length}
-            </strong>
-          </div>
-          <div 
-            onClick={() => navigate('/restaurant/suppliers?tab=orders')}
-            className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-xl border border-slate-100 dark:border-slate-750 shadow-sm hover:shadow-md hover:scale-[1.02] cursor-pointer transition-all duration-300 flex flex-col justify-between"
-          >
-            <span className="text-xs text-slate-450 block uppercase tracking-wider font-semibold">Approved Orders</span>
-            <strong className="text-3xl font-semibold text-emerald-600 mt-2 block leading-none">
-              {requests.filter(r => r.status === 'Approved' || r.status === 'Converted').length}
-            </strong>
-          </div>
-          <div 
-            onClick={() => navigate('/restaurant/suppliers?tab=history')}
-            className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-xl border border-slate-100 dark:border-slate-750 shadow-sm hover:shadow-md hover:scale-[1.02] cursor-pointer transition-all duration-300 flex flex-col justify-between"
-          >
-            <span className="text-xs text-slate-450 block uppercase tracking-wider font-semibold">Completed History</span>
-            <strong className="text-3xl font-semibold text-purple-600 mt-2 block leading-none">
-              {requests.filter(r => r.status === 'Delivered').length}
-            </strong>
-          </div>
-        </div>
+        )}
       </section>
 
       {/* 2. Quick Actions Section */}
@@ -406,30 +435,42 @@ export const KitchenDashboard: React.FC = () => {
           </div>
           
           <div className="max-h-[360px] overflow-y-auto pr-1 space-y-3 scrollbar-thin flex-1">
-            {finalPreparationQueue.map((item) => (
-              <div 
-                key={item.id} 
-                onClick={() => navigate('/restaurant/kitchen?status=PREPARING')}
-                className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-750 hover:shadow-md hover:scale-[1.01] transition cursor-pointer"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <strong className="font-semibold text-black dark:text-white text-sm">{item.orderNo}</strong>
-                    <span className="text-xs bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-750 dark:text-slate-350">{item.tableNo}</span>
+            {loading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-750 animate-pulse">
+                  <div className="space-y-2 flex-1">
+                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24"></div>
+                    <div className="h-3 bg-slate-200 dark:bg-slate-750 rounded w-48"></div>
                   </div>
-                  <p className="text-xs text-slate-455 mt-1 truncate">Guest: {item.customerName} | Chef: {item.chef}</p>
+                  <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-16"></div>
                 </div>
-                <div className="text-right shrink-0">
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
-                    {item.status}
-                  </span>
-                  <span className="text-xs text-slate-500 block mt-1 font-semibold">{item.prepTime}</span>
+              ))
+            ) : (
+              finalPreparationQueue.map((item) => (
+                <div 
+                  key={item.id} 
+                  onClick={() => navigate('/restaurant/kitchen?status=PREPARING')}
+                  className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-750 hover:shadow-md hover:scale-[1.01] transition cursor-pointer"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <strong className="font-semibold text-black dark:text-white text-sm">{item.orderNo}</strong>
+                      <span className="text-xs bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-750 dark:text-slate-350">{item.tableNo}</span>
+                    </div>
+                    <p className="text-xs text-slate-455 mt-1 truncate">Guest: {item.customerName} | Chef: {item.chef}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                      {item.status}
+                    </span>
+                    <span className="text-xs text-slate-500 block mt-1 font-semibold">{item.prepTime}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </section>
-
+ 
         {/* 4. Recent Inventory Requests Section */}
         <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm flex flex-col">
           <div className="flex items-center justify-between mb-4">
@@ -441,9 +482,20 @@ export const KitchenDashboard: React.FC = () => {
             </h2>
             <span className="text-xs font-semibold text-slate-450 bg-slate-100 dark:bg-slate-700 px-2.5 py-1 rounded-lg">Newest First</span>
           </div>
-
+ 
           <div className="max-h-[300px] overflow-y-auto pr-1 space-y-3 scrollbar-thin flex-1">
-            {requests.length === 0 ? (
+            {loading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="p-4 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-750 animate-pulse space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-28"></div>
+                    <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-16"></div>
+                  </div>
+                  <div className="h-3 bg-slate-205 dark:bg-slate-750 rounded w-36"></div>
+                  <div className="h-3 bg-slate-200 dark:bg-slate-755 rounded w-48"></div>
+                </div>
+              ))
+            ) : requests.length === 0 ? (
               <p className="text-xs text-slate-450 italic py-8 text-center">No inventory requests created yet.</p>
             ) : (
               [...requests]
@@ -468,7 +520,7 @@ export const KitchenDashboard: React.FC = () => {
                         {req.status}
                       </span>
                     </div>
-
+ 
                     <div className="text-[11px] text-slate-500 space-y-0.5 font-medium">
                       <div>Requested By: <strong className="text-black dark:text-white font-medium">{req.requestedBy || 'Chef'}</strong></div>
                       <div>Created Date & Time: <strong className="text-black dark:text-white font-medium">{new Date(req.createdAt).toLocaleString()}</strong></div>

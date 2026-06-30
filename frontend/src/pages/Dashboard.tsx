@@ -173,7 +173,10 @@ export const Dashboard: React.FC = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 
           {/* Card 1: Today's Revenue (Green Accent) */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5">
+          <div 
+            onClick={() => navigate('/reports?category=Sales Reports&filter=Today')}
+            className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5"
+          >
             <div className="space-y-3">
               <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Today's Revenue</span>
               <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-none group-hover:text-emerald-600 transition-colors">
@@ -189,7 +192,10 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Card 2: Today's Orders (Blue Accent) */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-blue-500 hover:bg-blue-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5">
+          <div 
+            onClick={() => navigate('/sales-history')}
+            className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-blue-500 hover:bg-blue-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5"
+          >
             <div className="space-y-3">
               <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Today's Orders</span>
               <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-none group-hover:text-blue-600 transition-colors">
@@ -205,7 +211,10 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Card 3: Today's Profit (Emerald Accent) */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-emerald-650 hover:bg-emerald-50/20 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5">
+          <div 
+            onClick={() => navigate('/reports?category=Profit %26 Loss&filter=Today')}
+            className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-emerald-650 hover:bg-emerald-50/20 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5"
+          >
             <div className="space-y-3">
               <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Today's Profit</span>
               <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-none group-hover:text-emerald-750 transition-colors">
@@ -221,7 +230,10 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Card 4: New Customers (Cyan Accent) */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-cyan-500 hover:bg-cyan-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5">
+          <div 
+            onClick={() => navigate('/customers?filter=new')}
+            className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-cyan-500 hover:bg-cyan-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5"
+          >
             <div className="space-y-3">
               <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">New Customers</span>
               <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-none group-hover:text-cyan-600 transition-colors">
@@ -237,7 +249,10 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Card 5: Inventory Valuation (Orange Accent) */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-orange-500 hover:bg-orange-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5">
+          <div 
+            onClick={() => navigate('/inventory')}
+            className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-orange-500 hover:bg-orange-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5"
+          >
             <div className="space-y-3">
               <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Inventory Valuation</span>
               <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-none group-hover:text-orange-600 transition-colors">
@@ -253,7 +268,10 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Card 6: Pending Payments (Purple Accent) */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-purple-500 hover:bg-purple-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5">
+          <div 
+            onClick={() => navigate('/suppliers')}
+            className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-purple-500 hover:bg-purple-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5"
+          >
             <div className="space-y-3">
               <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Pending Payments</span>
               <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-none group-hover:text-purple-600 transition-colors">
@@ -269,7 +287,10 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Card 7: Low Stock Products (Amber Accent) */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-amber-500 hover:bg-amber-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5">
+          <div 
+            onClick={() => navigate('/inventory?status=low_stock')}
+            className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-amber-500 hover:bg-amber-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5"
+          >
             <div className="space-y-3">
               <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Low Stock Products</span>
               <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-none group-hover:text-amber-600 transition-colors">
@@ -285,7 +306,10 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Card 8: Out Of Stock (Red Accent) */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-red-500 hover:bg-red-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5">
+          <div 
+            onClick={() => navigate('/inventory?status=out_of_stock')}
+            className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between shadow-sm hover:shadow-md hover:border-red-500 hover:bg-red-50/10 transition-all duration-300 group cursor-pointer hover:-translate-y-0.5"
+          >
             <div className="space-y-3">
               <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Out of Stock</span>
               <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-none group-hover:text-red-600 transition-colors">

@@ -6,6 +6,7 @@ import path from 'path';
 import { addClient, removeClient, broadcast } from '../utils/realtime';
 import PDFDocument from 'pdfkit';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 
 // Utility: Deduct ingredients from stock based on recipe
 async function deductRecipeIngredients(menuItemId: string, quantity: number) {
@@ -116,7 +117,10 @@ async function getActualRestaurantId(clientRestaurantId?: string | any): Promise
   return restaurant.id;
 }
 
+let kitchenDummyDataEnsured = false;
+
 export async function ensureKitchenDummyDataExists() {
+  if (kitchenDummyDataEnsured) return;
   try {
     let restaurant = await prisma.restaurant.findFirst();
     if (!restaurant) {
@@ -375,6 +379,7 @@ export async function ensureKitchenDummyDataExists() {
       });
     }
   }
+  kitchenDummyDataEnsured = true;
   } catch (err) {
     console.error('[Seed Error] Failed to seed kitchen dummy data:', err);
   }
@@ -558,7 +563,6 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
 // 2. TABLE MANAGEMENT
 export const getTables = async (req: Request, res: Response) => {
   const { restaurantId } = req.query;
-  if (!restaurantId) return res.status(400).json({ message: 'restaurantId is required' });
 
   try {
     const restId = await getActualRestaurantId(restaurantId);
@@ -1312,6 +1316,24 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
       include: { table: true }
     });
 
+    // Sync individual items' status to maintain integrity
+    if (status === 'ACCEPTED' || status === 'PREPARING') {
+      await prisma.kitchenOrderItem.updateMany({
+        where: { kitchenOrderId: id },
+        data: { status: 'PREPARING' }
+      });
+    } else if (status === 'READY') {
+      await prisma.kitchenOrderItem.updateMany({
+        where: { kitchenOrderId: id },
+        data: { status: 'READY' }
+      });
+    } else if (status === 'NEW') {
+      await prisma.kitchenOrderItem.updateMany({
+        where: { kitchenOrderId: id },
+        data: { status: 'PENDING' }
+      });
+    }
+
     // Create a waiter notification if status is READY
     if (status === 'READY') {
       const tableName = order.table?.tableNumber || 'Takeaway';
@@ -1496,6 +1518,105 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 
     return res.status(200).json(order);
   } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const updateOrderItemStatus = async (req: Request, res: Response) => {
+  const { itemId } = req.params;
+  const { status } = req.body; // PENDING, PREPARING, READY
+  try {
+    const item = await prisma.kitchenOrderItem.update({
+      where: { id: itemId },
+      data: { status },
+      include: { kitchenOrder: { include: { items: true, table: true } } }
+    });
+
+    const order = item.kitchenOrder;
+    const allItems = order.items;
+
+    // Determine overall order status
+    let nextOrderStatus = 'NEW';
+    const isAllPending = allItems.every(it => it.status === 'PENDING');
+    const isAllReady = allItems.every(it => it.status === 'READY');
+    const hasAnyPreparing = allItems.some(it => it.status === 'PREPARING');
+    const hasAnyReady = allItems.some(it => it.status === 'READY');
+
+    if (isAllReady) {
+      nextOrderStatus = 'READY';
+    } else if (hasAnyPreparing && hasAnyReady) {
+      nextOrderStatus = 'PARTIALLY_READY';
+    } else if (hasAnyPreparing) {
+      nextOrderStatus = 'PREPARING';
+    } else if (hasAnyReady) {
+      nextOrderStatus = 'PARTIALLY_READY';
+    } else if (isAllPending) {
+      nextOrderStatus = 'NEW';
+    } else {
+      nextOrderStatus = 'PREPARING';
+    }
+
+    const updatedOrder = await prisma.kitchenOrder.update({
+      where: { id: order.id },
+      data: { status: nextOrderStatus },
+      include: {
+        items: { include: { menuItem: true } },
+        table: true,
+        waiter: true
+      }
+    });
+
+    // Sync table status
+    if (updatedOrder.tableId) {
+      let tableStatusUpdate = 'OCCUPIED';
+      if (nextOrderStatus === 'PREPARING' || nextOrderStatus === 'PARTIALLY_READY') {
+        tableStatusUpdate = 'COOKING';
+      } else if (nextOrderStatus === 'READY') {
+        tableStatusUpdate = 'READY';
+      }
+
+      await prisma.restaurantTable.update({
+        where: { id: updatedOrder.tableId },
+        data: { status: tableStatusUpdate }
+      });
+    }
+
+    // Send notifications if the order becomes completely READY
+    if (nextOrderStatus === 'READY') {
+      const tableName = updatedOrder.table?.tableNumber || 'Takeaway';
+      const orderShort = updatedOrder.id.slice(-4).toUpperCase();
+      
+      let serviceTask = await prisma.serviceTask.findFirst({
+        where: { orderId: updatedOrder.id }
+      });
+      if (!serviceTask) {
+        serviceTask = await prisma.serviceTask.create({
+          data: {
+            orderId: updatedOrder.id,
+            tableNumber: tableName,
+            waiterId: updatedOrder.waiterId,
+            status: 'ready'
+          }
+        });
+      }
+
+      broadcast('NOTIFICATION', {
+        id: `notif_${Date.now()}`,
+        orderId: updatedOrder.id,
+        type: 'ORDER_READY',
+        message: `${tableName.toUpperCase()} - ORDER READY - Serve Now`,
+        assignedWaiterId: updatedOrder.waiterId,
+        tableNumber: tableName,
+        kotNumber: orderShort
+      });
+    }
+
+    // Broadcast update to all listeners (KDS, Waiter Dashboard, Manager, etc.)
+    broadcast('NEW_ORDER', updatedOrder);
+
+    return res.status(200).json(updatedOrder);
+  } catch (err: any) {
+    console.error('Error in updateOrderItemStatus:', err);
     return res.status(500).json({ error: err.message });
   }
 };
@@ -2550,7 +2671,7 @@ export const handleRealtime = async (req: Request, res: Response) => {
 };
 
 export const createKitchenOrder = async (req: Request, res: Response) => {
-  const { tableId, source, items, notes, waiterId, paymentMethod, paymentStatus } = req.body;
+  const { tableId, source, items, notes, waiterId, waiterName, paymentMethod, paymentStatus } = req.body;
   try {
     let tableName = 'Takeaway';
     let existingOrder = null;
@@ -2568,6 +2689,22 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
       }
     }
 
+    // Resolve waiter ID from name or ID
+    let resolvedWaiterId = waiterId || null;
+    if (!resolvedWaiterId && waiterName) {
+      const waiter = await prisma.restaurantWaiter.findFirst({
+        where: {
+          name: {
+            equals: waiterName,
+            mode: 'insensitive'
+          }
+        }
+      });
+      if (waiter) {
+        resolvedWaiterId = waiter.id;
+      }
+    }
+
     const kotNum = Math.floor(100 + Math.random() * 900);
     const kotLabel = `KOT-${kotNum}`;
 
@@ -2577,14 +2714,20 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
       const addedItems = [];
 
       for (const it of items) {
-        newTotal += it.unitPrice * it.quantity;
+        let uPrice = it.unitPrice;
+        if (uPrice === undefined || uPrice === null || isNaN(uPrice) || uPrice === 0) {
+          const dbItem = await prisma.menuItem.findUnique({ where: { id: it.menuItemId } });
+          uPrice = dbItem ? dbItem.price : 0;
+        }
+
+        newTotal += uPrice * it.quantity;
         const createdItem = await prisma.kitchenOrderItem.create({
           data: {
             kitchenOrderId: existingOrder.id,
             menuItemId: it.menuItemId,
             quantity: it.quantity,
             notes: it.notes ? `[${kotLabel}] ${it.notes}` : `[${kotLabel}]`,
-            unitPrice: it.unitPrice
+            unitPrice: uPrice
           },
           include: { menuItem: true }
         });
@@ -2598,7 +2741,8 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
         data: {
           totalAmount: newTotal,
           status: 'NEW',
-          notes: notes ? (existingOrder.notes ? `${existingOrder.notes}; ${notes}` : notes) : existingOrder.notes
+          notes: notes ? (existingOrder.notes ? `${existingOrder.notes}; ${notes}` : notes) : existingOrder.notes,
+          waiterId: resolvedWaiterId || existingOrder.waiterId
         },
         include: {
           items: { include: { menuItem: true } },
@@ -2615,6 +2759,12 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
     const consolidatedItemsMap = new Map<string, any>();
     for (const it of items) {
       const key = it.menuItemId;
+      let uPrice = it.unitPrice;
+      if (uPrice === undefined || uPrice === null || isNaN(uPrice) || uPrice === 0) {
+        const dbItem = await prisma.menuItem.findUnique({ where: { id: it.menuItemId } });
+        uPrice = dbItem ? dbItem.price : 0;
+      }
+
       if (consolidatedItemsMap.has(key)) {
         const existing = consolidatedItemsMap.get(key);
         existing.quantity += it.quantity;
@@ -2626,7 +2776,7 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
           menuItemId: it.menuItemId,
           quantity: it.quantity,
           notes: it.notes ? `[${kotLabel}] ${it.notes}` : `[${kotLabel}]`,
-          unitPrice: it.unitPrice
+          unitPrice: uPrice
         });
       }
     }
@@ -2641,7 +2791,7 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
         source: source || 'WAITER',
         status: 'NEW',
         notes: notes || null,
-        waiterId: waiterId || null,
+        waiterId: resolvedWaiterId,
         totalAmount: total,
         paymentStatus: paymentStatus || 'PENDING',
         paymentMethod: paymentMethod || 'CASH',
@@ -2676,7 +2826,8 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
             menuItem: true
           }
         },
-        table: true
+        table: true,
+        waiter: true
       }
     });
 
@@ -2684,6 +2835,7 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
 
     return res.status(201).json(order);
   } catch (err: any) {
+    console.error('Error in createKitchenOrder:', err);
     return res.status(500).json({ error: err.message });
   }
 };
@@ -3514,3 +3666,1087 @@ export const settleTableBill = async (req: Request, res: Response) => {
     return res.status(500).json({ error: err.message });
   }
 };
+
+// 12. EMPLOYEE MANAGEMENT
+async function seedThirtyEmployees(restaurantId: string) {
+  const count = await prisma.employee.count({ where: { restaurantId } });
+  if (count >= 30) return;
+
+  console.log('[SEED] Starting automatic seed of 30 restaurant employees...');
+
+  // 1. Ensure we have shifts
+  const shiftData = [
+    { name: 'Morning', startTime: '09:00 AM', endTime: '05:00 PM', breakTime: '30 mins' },
+    { name: 'Evening', startTime: '05:00 PM', endTime: '01:00 AM', breakTime: '30 mins' },
+    { name: 'Night', startTime: '10:00 PM', endTime: '06:00 AM', breakTime: '30 mins' },
+    { name: 'General', startTime: '10:00 AM', endTime: '07:00 PM', breakTime: '1 hour' }
+  ];
+
+  for (const s of shiftData) {
+    await prisma.employeeShift.upsert({
+      where: { name: s.name },
+      update: {},
+      create: {
+        name: s.name,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        breakTime: s.breakTime,
+        applicableRoles: ['Waiter', 'Senior Waiter', 'Captain', 'Chef', 'Head Chef', 'Sous Chef', 'Kitchen Staff', 'Helper', 'Cashier', 'Billing Executive', 'Manager', 'Assistant Manager', 'Inventory Manager', 'Store Keeper', 'Cleaner', 'Housekeeping', 'Security Guard', 'Supervisor'],
+        restaurantId
+      }
+    });
+  }
+
+  // 2. Define 30 employees
+  const staff = [
+    // 6 Waiters / Service
+    { name: 'Anushka Kanherkar', role: 'Waiter', dept: 'Service', salary: 18000, shift: 'Morning' },
+    { name: 'Rahul Sharma', role: 'Senior Waiter', dept: 'Service', salary: 22000, shift: 'Evening' },
+    { name: 'Priya Patel', role: 'Waiter', dept: 'Service', salary: 19000, shift: 'Morning' },
+    { name: 'Amit Mishra', role: 'Captain', dept: 'Service', salary: 25000, shift: 'General' },
+    { name: 'Sneha Reddy', role: 'Waiter', dept: 'Service', salary: 18500, shift: 'Evening' },
+    { name: 'Vikram Malhotra', role: 'Senior Waiter', dept: 'Service', salary: 21000, shift: 'General' },
+    
+    // 6 Kitchen Staff
+    { name: 'Sanjay Dutt', role: 'Kitchen Staff', dept: 'Kitchen', salary: 22000, shift: 'Morning' },
+    { name: 'Pooja Hegde', role: 'Helper', dept: 'Kitchen', salary: 16000, shift: 'Evening' },
+    { name: 'Rohan Joshi', role: 'Kitchen Staff', dept: 'Kitchen', salary: 22500, shift: 'Morning' },
+    { name: 'Neha Sen', role: 'Helper', dept: 'Kitchen', salary: 16500, shift: 'General' },
+    { name: 'Arjun Kapoor', role: 'Kitchen Staff', dept: 'Kitchen', salary: 21500, shift: 'Night' },
+    { name: 'Kriti Sanon', role: 'Kitchen Staff', dept: 'Kitchen', salary: 23000, shift: 'Evening' },
+
+    // 4 Chefs
+    { name: 'Chef Vikas Khanna', role: 'Head Chef', dept: 'Kitchen', salary: 85000, shift: 'General' },
+    { name: 'Chef Ranveer Brar', role: 'Sous Chef', dept: 'Kitchen', salary: 65000, shift: 'Evening' },
+    { name: 'Chef Kunal Kapur', role: 'Chef', dept: 'Kitchen', salary: 55000, shift: 'Morning' },
+    { name: 'Chef Garima Arora', role: 'Chef', dept: 'Kitchen', salary: 58000, shift: 'General' },
+
+    // 3 Cashiers / Billing
+    { name: 'Rajesh Kumar', role: 'Cashier', dept: 'Billing', salary: 25000, shift: 'General' },
+    { name: 'Sunita Gupta', role: 'Billing Executive', dept: 'Billing', salary: 22000, shift: 'Morning' },
+    { name: 'Anil Mehta', role: 'Cashier', dept: 'Billing', salary: 26000, shift: 'Evening' },
+
+    // 3 Managers
+    { name: 'Vikram Singh', role: 'Manager', dept: 'Management', salary: 80000, shift: 'General' },
+    { name: 'Meera Nair', role: 'Assistant Manager', dept: 'Management', salary: 60000, shift: 'General' },
+    { name: 'Kavita Rao', role: 'Manager', dept: 'Management', salary: 78000, shift: 'Evening' },
+
+    // 3 Inventory
+    { name: 'Ramesh Patil', role: 'Inventory Manager', dept: 'Inventory', salary: 30000, shift: 'General' },
+    { name: 'Suresh Iyer', role: 'Store Keeper', dept: 'Inventory', salary: 22000, shift: 'Morning' },
+    { name: 'Divya Teja', role: 'Inventory Manager', dept: 'Inventory', salary: 32000, shift: 'General' },
+
+    // 3 Cleaning Staff
+    { name: 'Raju Prasad', role: 'Cleaner', dept: 'Cleaning', salary: 14000, shift: 'Morning' },
+    { name: 'Sham Lal', role: 'Housekeeping', dept: 'Cleaning', salary: 15000, shift: 'Evening' },
+    { name: 'Geeta Devi', role: 'Cleaner', dept: 'Cleaning', salary: 14500, shift: 'General' },
+
+    // 2 Security Staff
+    { name: 'Balwan Singh', role: 'Security Guard', dept: 'Security', salary: 17005, shift: 'Night' },
+    { name: 'Jaggu Dada', role: 'Supervisor', dept: 'Security', salary: 22000, shift: 'Night' }
+  ];
+
+  // Fetch some tables to assign to waiters
+  const tables = await prisma.restaurantTable.findMany({ where: { restaurantId }, take: 15 });
+
+  let empIndex = 1;
+  for (const s of staff) {
+    const employeeId = 'EMP-' + String(1000 + empIndex).padStart(4, '0');
+    const phone = '98765' + String(10000 + empIndex);
+    const email = `${s.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@restaurant.com`;
+    
+    // Safety check: Skip if employee already exists with employeeId, phone, or email
+    const existing = await prisma.employee.findFirst({
+      where: {
+        OR: [
+          { employeeId },
+          { phone },
+          { email }
+        ]
+      }
+    });
+    if (existing) {
+      empIndex++;
+      continue;
+    }
+
+    // Ensure user exists for this email to support employee login
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      let dbRole: 'ADMIN' | 'MANAGER' | 'CASHIER' = 'CASHIER';
+      if (s.role === 'Manager') {
+        dbRole = 'MANAGER';
+      } else if (s.role === 'Head Chef' || s.role === 'Inventory Manager') {
+        dbRole = 'MANAGER';
+      }
+      
+      const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+      const businessName = restaurant ? restaurant.name : 'My Restaurant';
+      const hashedPassword = await bcrypt.hash('Password123!', 10);
+      
+      user = await prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name: s.name,
+          role: dbRole,
+          mobile: phone,
+          status: 'Active',
+          avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${s.name.replace(/\s+/g, '')}`,
+          businessType: 'Restaurant',
+          businessName,
+          branchId: null
+        }
+      });
+    }
+
+    // Create Employee
+    const emp = await prisma.employee.create({
+      data: {
+        employeeId,
+        name: s.name,
+        phone,
+        email,
+        department: s.dept,
+        role: s.role,
+        joiningDate: new Date(Date.now() - (empIndex * 5 * 24 * 60 * 60 * 1000)), // staggered joining
+        shift: s.shift,
+        employmentType: 'Full-time',
+        salary: s.salary,
+        status: 'Active',
+        restaurantId,
+        userId: user.id
+      }
+    });
+
+    // Create Waiter Profile if Waiter
+    if (['Waiter', 'Senior Waiter', 'Captain'].includes(s.role)) {
+      const waiter = await prisma.restaurantWaiter.create({
+        data: {
+          restaurantId,
+          name: s.name,
+          mobile: phone,
+          employeeCode: employeeId,
+          email,
+          status: 'ACTIVE',
+          employeeId: emp.id,
+          ordersServed: Math.floor(Math.random() * 80) + 10,
+          salesHandled: Math.floor(Math.random() * 15000) + 2000
+        }
+      });
+
+      // Assign 1-2 tables
+      const tableCount = tables.length;
+      if (tableCount > 0) {
+        const table1 = tables[(empIndex) % tableCount];
+        const table2 = tables[(empIndex + 1) % tableCount];
+        
+        await prisma.waiterTableAssignment.createMany({
+          data: [
+            { waiterId: waiter.id, tableNumber: table1.tableNumber, businessId: restaurantId },
+            { waiterId: waiter.id, tableNumber: table2.tableNumber, businessId: restaurantId }
+          ]
+        });
+      }
+    }
+
+    // Seed Attendance for past 10 days
+    const attendanceRecords = [];
+    for (let d = 0; d < 10; d++) {
+      const date = new Date();
+      date.setDate(date.getDate() - d);
+      date.setHours(0,0,0,0);
+
+      // Random status
+      let status = 'Present';
+      let checkIn: string | null = '09:02 AM';
+      let checkOut: string | null = '05:05 PM';
+      let workHours = 8.0;
+      let overtime = 0.0;
+
+      const rand = Math.random();
+      if (rand > 0.9) {
+        status = 'Absent';
+        checkIn = null;
+        checkOut = null;
+        workHours = 0;
+      } else if (rand > 0.8) {
+        status = 'Late';
+        checkIn = '09:45 AM';
+        workHours = 7.25;
+      } else if (rand > 0.75) {
+        status = 'Half Day';
+        checkIn = '09:00 AM';
+        checkOut = '01:00 PM';
+        workHours = 4.0;
+      } else if (rand > 0.7) {
+        status = 'Leave';
+        checkIn = null;
+        checkOut = null;
+        workHours = 0;
+      } else if (Math.random() > 0.5) {
+        // Normal day with overtime
+        overtime = Math.random() > 0.7 ? 1.5 : 0.0;
+        workHours = 8.0 + overtime;
+        checkOut = overtime > 0 ? '06:30 PM' : '05:00 PM';
+      }
+
+      attendanceRecords.push({
+        employeeId: emp.id,
+        date,
+        status,
+        checkIn,
+        checkOut,
+        workHours,
+        overtime,
+        notes: status === 'Late' ? 'Late arrival' : (status === 'Half Day' ? 'Doctor appointment' : null)
+      });
+    }
+    await prisma.employeeAttendance.createMany({ data: attendanceRecords });
+
+    // Seed 1-2 Leaves
+    await prisma.employeeLeave.create({
+      data: {
+        employeeId: emp.id,
+        leaveType: 'Sick Leave',
+        reason: 'Fever and cold',
+        startDate: new Date(Date.now() - (15 * 24 * 60 * 60 * 1000)),
+        endDate: new Date(Date.now() - (14 * 24 * 60 * 60 * 1000)),
+        status: Math.random() > 0.5 ? 'Approved' : 'Rejected',
+        restaurantId
+      }
+    });
+
+    if (Math.random() > 0.7) {
+      await prisma.employeeLeave.create({
+        data: {
+          employeeId: emp.id,
+          leaveType: 'Casual Leave',
+          reason: 'Family function',
+          startDate: new Date(Date.now() + (5 * 24 * 60 * 60 * 1000)),
+          endDate: new Date(Date.now() + (6 * 24 * 60 * 60 * 1000)),
+          status: 'Pending',
+          restaurantId
+        }
+      });
+    }
+
+    // Seed Salaries for past 2 months
+    const months = [
+      { name: 'May 2026', date: new Date('2026-05-31'), status: 'Paid' },
+      { name: 'June 2026', date: new Date('2026-06-30'), status: Math.random() > 0.3 ? 'Paid' : 'Unpaid' }
+    ];
+
+    for (const m of months) {
+      const basic = s.salary;
+      const allowances = Math.floor(basic * 0.1);
+      const deductions = Math.floor(basic * 0.05);
+      const otAmt = Math.random() > 0.5 ? 1200 : 0;
+      const bonus = Math.random() > 0.8 ? 2000 : 0;
+      const net = basic + allowances + otAmt + bonus - deductions;
+
+      await prisma.employeeSalary.create({
+        data: {
+          employeeId: emp.id,
+          basicSalary: basic,
+          allowances,
+          deductions,
+          overtime: otAmt,
+          bonus,
+          netSalary: net,
+          paymentStatus: m.status,
+          paymentDate: m.status === 'Paid' ? m.date : null,
+          restaurantId,
+          createdAt: m.date
+        }
+      });
+    }
+
+    // Seed Activity Logs
+    await prisma.employeeActivity.createMany({
+      data: [
+        { employeeId: emp.id, action: 'Profile Created', details: `Registered as ${s.role} in ${s.dept} department.`, timestamp: emp.createdAt },
+        { employeeId: emp.id, action: 'Shift Assigned', details: `Assigned to ${s.shift} shift.`, timestamp: new Date(emp.createdAt.getTime() + 60000) }
+      ]
+    });
+
+    empIndex++;
+  }
+
+  console.log(`[SEED] Successfully seeded ${empIndex - 1} employees.`);
+}
+
+export const getEmployees = async (req: Request, res: Response) => {
+  const { restaurantId } = req.query;
+  if (!restaurantId) {
+    return res.status(400).json({ error: 'restaurantId is required' });
+  }
+
+  try {
+    const restId = await getActualRestaurantId(restaurantId);
+    
+    // Auto-seed if database doesn't have 30 employees yet
+    await seedThirtyEmployees(restId);
+
+    const employees = await prisma.employee.findMany({
+      where: { restaurantId: restId },
+      include: {
+        waiterProfile: {
+          include: {
+            tableAssignments: true
+          }
+        },
+        attendance: {
+          orderBy: { date: 'desc' },
+          take: 30
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            status: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return res.status(200).json(employees);
+  } catch (err: any) {
+    console.error('Error fetching employees:', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const createEmployee = async (req: Request, res: Response) => {
+  const {
+    restaurantId,
+    name,
+    phone,
+    email,
+    department,
+    role,
+    joiningDate,
+    shift,
+    employmentType,
+    salary,
+    notes,
+    createLogin,
+    password,
+    photo
+  } = req.body;
+
+  if (!phone || !/^\d{10}$/.test(phone)) {
+    return res.status(400).json({ error: 'Phone number must contain exactly 10 digits.' });
+  }
+
+  if (salary && parseFloat(salary) < 0) {
+    return res.status(400).json({ error: 'Salary cannot be a negative value.' });
+  }
+
+  const join = new Date(joiningDate || Date.now());
+  if (join > new Date()) {
+    return res.status(400).json({ error: 'Joining date cannot be in the future.' });
+  }
+
+  try {
+    const restId = await getActualRestaurantId(restaurantId);
+
+    // Check unique phone/email
+    const existingPhone = await prisma.employee.findUnique({ where: { phone } });
+    if (existingPhone) {
+      return res.status(400).json({ error: 'An employee with this phone number already exists.' });
+    }
+
+    if (email) {
+      const existingEmail = await prisma.employee.findUnique({ where: { email } });
+      if (existingEmail) {
+        return res.status(400).json({ error: 'An employee with this email address already exists.' });
+      }
+    }
+
+    // Generate Employee ID
+    const count = await prisma.employee.count();
+    const employeeId = 'EMP-' + String(1001 + count).padStart(4, '0');
+
+    let userId: string | undefined;
+
+    if (createLogin && email && password) {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(password, 10);
+      
+      let userRole: 'ADMIN' | 'MANAGER' | 'CASHIER' = 'CASHIER';
+      if (role.toUpperCase() === 'ADMIN' || role.toUpperCase() === 'MANAGER') {
+        userRole = role.toUpperCase() as any;
+      }
+
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser) {
+        return res.status(400).json({ error: 'A login account with this email already exists.' });
+      }
+
+      const user = await prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name,
+          role: userRole,
+          mobile: phone,
+          status: 'Active',
+          businessType: 'Restaurant',
+          avatar: photo || `https://api.dicebear.com/7.x/adventurer/svg?seed=${name.replace(/\s+/g, '')}`
+        }
+      });
+      userId = user.id;
+    }
+
+    const employee = await prisma.employee.create({
+      data: {
+        employeeId,
+        name,
+        phone,
+        email: email || undefined,
+        department,
+        role,
+        joiningDate: join,
+        shift: shift || 'General',
+        employmentType: employmentType || 'Full-time',
+        salary: salary ? parseFloat(salary) : null,
+        notes,
+        photo: photo || null,
+        restaurantId: restId,
+        userId
+      }
+    });
+
+    if (['Waiter', 'Senior Waiter', 'Captain'].includes(role)) {
+      await prisma.restaurantWaiter.create({
+        data: {
+          restaurantId: restId,
+          name,
+          mobile: phone,
+          employeeCode: employeeId,
+          email: email || undefined,
+          status: 'ACTIVE',
+          employeeId: employee.id
+        }
+      });
+    }
+
+    await prisma.employeeActivity.create({
+      data: {
+        employeeId: employee.id,
+        action: 'Profile Created',
+        details: `Employee profile registered as ${role} in ${department} department.`
+      }
+    });
+
+    return res.status(201).json(employee);
+  } catch (err: any) {
+    console.error('Error creating employee:', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const editEmployee = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const {
+    name,
+    phone,
+    email,
+    department,
+    role,
+    joiningDate,
+    shift,
+    employmentType,
+    salary,
+    notes,
+    photo
+  } = req.body;
+
+  if (phone && !/^\d{10}$/.test(phone)) {
+    return res.status(400).json({ error: 'Phone number must contain exactly 10 digits.' });
+  }
+
+  if (salary && parseFloat(salary) < 0) {
+    return res.status(400).json({ error: 'Salary cannot be a negative value.' });
+  }
+
+  if (joiningDate) {
+    const join = new Date(joiningDate);
+    if (join > new Date()) {
+      return res.status(400).json({ error: 'Joining date cannot be in the future.' });
+    }
+  }
+
+  try {
+    const existing = await prisma.employee.findUnique({
+      where: { id },
+      include: { waiterProfile: true }
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Employee not found.' });
+    }
+
+    if (phone && phone !== existing.phone) {
+      const existingPhone = await prisma.employee.findUnique({ where: { phone } });
+      if (existingPhone) {
+        return res.status(400).json({ error: 'An employee with this phone number already exists.' });
+      }
+    }
+
+    if (email && email !== existing.email) {
+      const existingEmail = await prisma.employee.findUnique({ where: { email } });
+      if (existingEmail) {
+        return res.status(400).json({ error: 'An employee with this email address already exists.' });
+      }
+    }
+
+    const updated = await prisma.employee.update({
+      where: { id },
+      data: {
+        name,
+        phone,
+        email: email || undefined,
+        department,
+        role,
+        joiningDate: joiningDate ? new Date(joiningDate) : undefined,
+        shift,
+        employmentType,
+        salary: salary ? parseFloat(salary) : null,
+        notes,
+        photo: photo !== undefined ? photo : undefined
+      }
+    });
+
+    if (updated.userId && photo) {
+      await prisma.user.update({
+        where: { id: updated.userId },
+        data: { avatar: photo }
+      });
+    }
+
+    if (['Waiter', 'Senior Waiter', 'Captain'].includes(role)) {
+      if (existing.waiterProfile) {
+        await prisma.restaurantWaiter.update({
+          where: { id: existing.waiterProfile.id },
+          data: {
+            name,
+            mobile: phone || existing.phone,
+            email: email || undefined
+          }
+        });
+      } else {
+        await prisma.restaurantWaiter.create({
+          data: {
+            restaurantId: existing.restaurantId,
+            name,
+            mobile: phone || existing.phone,
+            employeeCode: existing.employeeId,
+            email: email || undefined,
+            status: 'ACTIVE',
+            employeeId: id
+          }
+        });
+      }
+    } else {
+      if (existing.waiterProfile) {
+        await prisma.restaurantWaiter.delete({
+          where: { id: existing.waiterProfile.id }
+        });
+      }
+    }
+
+    await prisma.employeeActivity.create({
+      data: {
+        employeeId: id,
+        action: 'Profile Updated',
+        details: `Employee profile updated. Department: ${department}, Role: ${role}.`
+      }
+    });
+
+    return res.status(200).json(updated);
+  } catch (err: any) {
+    console.error('Error updating employee:', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const deleteEmployee = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const employee = await prisma.employee.findUnique({
+      where: { id },
+      include: { user: true, waiterProfile: true }
+    });
+
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found.' });
+    }
+
+    if (employee.userId) {
+      await prisma.user.delete({ where: { id: employee.userId } });
+    }
+
+    if (employee.waiterProfile) {
+      await prisma.restaurantWaiter.delete({ where: { id: employee.waiterProfile.id } });
+    }
+
+    await prisma.employee.delete({ where: { id } });
+
+    return res.status(200).json({ message: 'Employee profile deleted successfully.' });
+  } catch (err: any) {
+    console.error('Error deleting employee:', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const resetAndSeedEmployees = async (req: Request, res: Response) => {
+  const { restaurantId } = req.body;
+  if (!restaurantId) {
+    return res.status(400).json({ error: 'restaurantId is required' });
+  }
+
+  try {
+    const restId = await getActualRestaurantId(restaurantId);
+
+    // Get all employees to delete their linked users and waiter profiles manually
+    const allEmployees = await prisma.employee.findMany({
+      where: { restaurantId: restId }
+    });
+
+    const userIds = allEmployees.map(e => e.userId).filter(Boolean) as string[];
+    
+    // Delete linked users
+    if (userIds.length > 0) {
+      await prisma.user.deleteMany({
+        where: { id: { in: userIds } }
+      });
+    }
+
+    // Delete linked waiter profiles (which will cascade to waiter table assignments, etc.)
+    await prisma.restaurantWaiter.deleteMany({
+      where: { restaurantId: restId }
+    });
+
+    // Delete all employee records (which will cascade to attendance, leaves, salaries, activities)
+    await prisma.employee.deleteMany({
+      where: { restaurantId: restId }
+    });
+
+    // Run seed to create 30 new employees with the synchronized roles
+    await seedThirtyEmployees(restId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Successfully reset and seeded employee database with 30 synchronized roles.'
+    });
+  } catch (err: any) {
+    console.error('Error resetting employee database:', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const getEmployeeStats = async (req: Request, res: Response) => {
+  const { restaurantId } = req.query;
+  if (!restaurantId) {
+    return res.status(400).json({ error: 'restaurantId is required' });
+  }
+
+  try {
+    const restId = await getActualRestaurantId(restaurantId);
+    
+    await seedThirtyEmployees(restId);
+
+    const totalEmployees = await prisma.employee.count({
+      where: { restaurantId: restId }
+    });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // On Duty = Present today
+    const presentToday = await prisma.employeeAttendance.count({
+      where: {
+        employee: { restaurantId: restId },
+        date: { gte: today },
+        status: 'Present'
+      }
+    });
+
+    // Leave Requests = Pending leaves
+    const leaveRequests = await prisma.employeeLeave.count({
+      where: {
+        restaurantId: restId,
+        status: 'Pending'
+      }
+    });
+
+    // Salary Processing = Unpaid salaries in current month
+    const salaryProcessing = await prisma.employeeSalary.count({
+      where: {
+        restaurantId: restId,
+        paymentStatus: 'Unpaid'
+      }
+    });
+
+    const recentActivities = await prisma.employeeActivity.findMany({
+      where: { employee: { restaurantId: restId } },
+      orderBy: { timestamp: 'desc' },
+      take: 15,
+      include: {
+        employee: {
+          select: {
+            name: true,
+            role: true
+          }
+        }
+      }
+    });
+
+    return res.status(200).json({
+      totalEmployees,
+      activeEmployees: presentToday, // maps to "On Duty"
+      presentToday,
+      onLeaveToday: leaveRequests, // maps to "Leave Requests"
+      salaryProcessing,
+      recentActivities
+    });
+  } catch (err: any) {
+    console.error('Error fetching employee stats:', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const getEmployeeProfile = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const employee = await prisma.employee.findUnique({
+      where: { id },
+      include: {
+        attendance: {
+          orderBy: { date: 'desc' },
+          take: 30
+        },
+        activities: {
+          orderBy: { timestamp: 'desc' },
+          take: 30
+        },
+        leaves: {
+          orderBy: { startDate: 'desc' },
+          take: 10
+        },
+        salaries: {
+          orderBy: { createdAt: 'desc' },
+          take: 10
+        },
+        waiterProfile: {
+          include: {
+            tableAssignments: true,
+            kitchenOrders: {
+              orderBy: { createdAt: 'desc' },
+              take: 10
+            }
+          }
+        }
+      }
+    });
+
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found.' });
+    }
+
+    return res.status(200).json(employee);
+  } catch (err: any) {
+    console.error('Error fetching employee profile:', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const updateEmployeeAttendance = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status, notes, checkIn, checkOut, workHours, overtime } = req.body;
+
+  if (!status) {
+    return res.status(400).json({ error: 'Status is required.' });
+  }
+
+  try {
+    const employee = await prisma.employee.findUnique({ where: { id } });
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found.' });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const existing = await prisma.employeeAttendance.findFirst({
+      where: {
+        employeeId: id,
+        date: {
+          gte: today,
+          lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+        }
+      }
+    });
+
+    let attendance;
+    if (existing) {
+      attendance = await prisma.employeeAttendance.update({
+        where: { id: existing.id },
+        data: {
+          status,
+          notes,
+          checkIn,
+          checkOut,
+          workHours: workHours ? parseFloat(workHours) : undefined,
+          overtime: overtime ? parseFloat(overtime) : undefined
+        }
+      });
+    } else {
+      attendance = await prisma.employeeAttendance.create({
+        data: {
+          employeeId: id,
+          date: new Date(),
+          status,
+          notes,
+          checkIn,
+          checkOut,
+          workHours: workHours ? parseFloat(workHours) : undefined,
+          overtime: overtime ? parseFloat(overtime) : undefined
+        }
+      });
+    }
+
+    await prisma.employeeActivity.create({
+      data: {
+        employeeId: id,
+        action: 'Attendance Marked',
+        details: `Marked as ${status}. Check-In: ${checkIn || 'N/A'}, Check-Out: ${checkOut || 'N/A'}`
+      }
+    });
+
+    return res.status(200).json(attendance);
+  } catch (err: any) {
+    console.error('Error updating attendance:', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// --- SHIFTS CONTROLLERS ---
+export const getShifts = async (req: Request, res: Response) => {
+  const { restaurantId } = req.query;
+  try {
+    const restId = await getActualRestaurantId(restaurantId);
+    const shifts = await prisma.employeeShift.findMany({
+      where: { restaurantId: restId },
+      orderBy: { name: 'asc' }
+    });
+    return res.status(200).json(shifts);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const createShift = async (req: Request, res: Response) => {
+  const { name, startTime, endTime, breakTime, applicableRoles, restaurantId } = req.body;
+  try {
+    const restId = await getActualRestaurantId(restaurantId);
+    
+    // Validate shift time overlaps
+    const existing = await prisma.employeeShift.findFirst({
+      where: { name, restaurantId: restId }
+    });
+    if (existing) {
+      return res.status(400).json({ error: 'A shift with this name already exists.' });
+    }
+
+    const shift = await prisma.employeeShift.create({
+      data: {
+        name,
+        startTime,
+        endTime,
+        breakTime,
+        applicableRoles: applicableRoles || [],
+        restaurantId: restId
+      }
+    });
+    return res.status(201).json(shift);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const editShift = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { name, startTime, endTime, breakTime, applicableRoles } = req.body;
+  try {
+    const shift = await prisma.employeeShift.update({
+      where: { id },
+      data: {
+        name,
+        startTime,
+        endTime,
+        breakTime,
+        applicableRoles: applicableRoles || []
+      }
+    });
+    return res.status(200).json(shift);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const deleteShift = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    await prisma.employeeShift.delete({ where: { id } });
+    return res.status(200).json({ message: 'Shift deleted successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// --- LEAVES CONTROLLERS ---
+export const getLeaves = async (req: Request, res: Response) => {
+  const { restaurantId } = req.query;
+  try {
+    const restId = await getActualRestaurantId(restaurantId);
+    const leaves = await prisma.employeeLeave.findMany({
+      where: { restaurantId: restId },
+      include: {
+        employee: {
+          select: { name: true, role: true, employeeId: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    return res.status(200).json(leaves);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const createLeave = async (req: Request, res: Response) => {
+  const { employeeId, leaveType, reason, startDate, endDate, restaurantId } = req.body;
+  try {
+    const restId = await getActualRestaurantId(restaurantId);
+    const leave = await prisma.employeeLeave.create({
+      data: {
+        employeeId,
+        leaveType,
+        reason,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        restaurantId: restId,
+        status: 'Pending'
+      }
+    });
+    return res.status(201).json(leave);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const updateLeaveStatus = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status } = req.body; // Approved, Rejected
+  try {
+    const leave = await prisma.employeeLeave.update({
+      where: { id },
+      data: { status }
+    });
+
+    await prisma.employeeActivity.create({
+      data: {
+        employeeId: leave.employeeId,
+        action: `Leave ${status}`,
+        details: `${leave.leaveType} from ${leave.startDate.toLocaleDateString()} to ${leave.endDate.toLocaleDateString()} was ${status.toLowerCase()}.`
+      }
+    });
+
+    return res.status(200).json(leave);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// --- SALARIES CONTROLLERS ---
+export const getSalaries = async (req: Request, res: Response) => {
+  const { restaurantId } = req.query;
+  try {
+    const restId = await getActualRestaurantId(restaurantId);
+    const salaries = await prisma.employeeSalary.findMany({
+      where: { restaurantId: restId },
+      include: {
+        employee: {
+          select: { name: true, role: true, employeeId: true, department: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    return res.status(200).json(salaries);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const processSalary = async (req: Request, res: Response) => {
+  const { employeeId, basicSalary, allowances, deductions, overtime, bonus, restaurantId } = req.body;
+  try {
+    const restId = await getActualRestaurantId(restaurantId);
+    const basic = parseFloat(basicSalary || 0);
+    const allow = parseFloat(allowances || 0);
+    const deduct = parseFloat(deductions || 0);
+    const ot = parseFloat(overtime || 0);
+    const bon = parseFloat(bonus || 0);
+    const net = basic + allow + ot + bon - deduct;
+
+    const salary = await prisma.employeeSalary.create({
+      data: {
+        employeeId,
+        basicSalary: basic,
+        allowances: allow,
+        deductions: deduct,
+        overtime: ot,
+        bonus: bon,
+        netSalary: net,
+        paymentStatus: 'Paid',
+        paymentDate: new Date(),
+        restaurantId: restId
+      }
+    });
+
+    await prisma.employeeActivity.create({
+      data: {
+        employeeId,
+        action: 'Salary Processed',
+        details: `Processed salary of ₹${net.toLocaleString()} for ${new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}.`
+      }
+    });
+
+    return res.status(201).json(salary);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const updateSalaryStatus = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { paymentStatus } = req.body; // Paid, Unpaid
+  try {
+    const salary = await prisma.employeeSalary.update({
+      where: { id },
+      data: {
+        paymentStatus,
+        paymentDate: paymentStatus === 'Paid' ? new Date() : null
+      }
+    });
+    return res.status(200).json(salary);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+

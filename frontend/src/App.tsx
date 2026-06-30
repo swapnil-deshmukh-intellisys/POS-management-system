@@ -35,7 +35,7 @@ import { RestaurantDashboard } from './pages/RestaurantDashboard';
 import { TableManagement } from './pages/TableManagement';
 import { KitchenDisplay } from './pages/KitchenDisplay';
 import { DigitalMenuBuilder } from './pages/DigitalMenuBuilder';
-import { WaiterManagement } from './pages/WaiterManagement';
+import { EmployeeManagement } from './pages/EmployeeManagement';
 import { Reservations } from './pages/Reservations';
 import { RecipeManagement } from './pages/RecipeManagement';
 import { OnlineOrders } from './pages/OnlineOrders';
@@ -48,6 +48,7 @@ import { WaiterDashboard } from './pages/WaiterDashboard';
 import { TakeOrder } from './pages/TakeOrder';
 import { GenerateBill } from './pages/GenerateBill';
 import { Suppliers as RestaurantSuppliers } from './pages/RestaurantSuppliers';
+import { ActiveTables } from './pages/ActiveTables';
 
 
 // Private Route Guard Component
@@ -65,10 +66,48 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
+export const getEffectiveRole = (user: any) => {
+  if (!user) return 'ADMIN';
+  if (user.employee?.role) {
+    const r = user.employee.role.toLowerCase();
+    if (r.includes('admin')) return 'ADMIN';
+    if (r.includes('manager')) return 'MANAGER';
+    if (r.includes('waiter') || r.includes('captain')) return 'WAITER';
+    if (r.includes('chef')) return 'CHEF';
+    if (r.includes('kitchen') || r.includes('helper')) return 'KITCHEN';
+    if (r.includes('inventory') || r.includes('keeper')) return 'INVENTORY';
+    if (r.includes('cashier') || r.includes('billing')) return 'CASHIER';
+    return 'EMPLOYEE';
+  }
+  return user.role;
+};
+
 const MainDashboard: React.FC = () => {
   const { user } = useAuth();
   const isRestaurant = user?.businessType === 'Restaurant' || user?.businessType === 'Cafe';
-  return isRestaurant ? <RestaurantDashboard /> : <Dashboard />;
+  if (!isRestaurant) return <Dashboard />;
+
+  const role = getEffectiveRole(user);
+
+  if (role === 'WAITER') {
+    return <WaiterDashboard />;
+  }
+  if (role === 'KITCHEN') {
+    return <KitchenDisplay />;
+  }
+  if (role === 'CHEF') {
+    return <KitchenDashboard />;
+  }
+  if (role === 'CASHIER') {
+    return <TakeOrder />;
+  }
+  if (role === 'INVENTORY') {
+    return <RestaurantInventory />;
+  }
+  if (role === 'EMPLOYEE') {
+    return <EmployeeManagement />;
+  }
+  return <RestaurantDashboard />; // ADMIN or MANAGER
 };
 
 // Main Layout Wrapper
@@ -139,6 +178,7 @@ const DashboardLayout: React.FC = () => {
             <Route path="/settings" element={<Settings />} />
 
             {/* Restaurant routes */}
+            <Route path="/restaurant/active-tables" element={<ActiveTables />} />
             <Route path="/restaurant/take-order" element={<TakeOrder />} />
             <Route path="/take-order" element={<TakeOrder />} />
             <Route path="/restaurant/generate-bill" element={<GenerateBill />} />
@@ -147,7 +187,8 @@ const DashboardLayout: React.FC = () => {
             <Route path="/restaurant/kitchen" element={<KitchenDisplay />} />
             <Route path="/restaurant/kitchen-dashboard" element={<KitchenDashboard />} />
             <Route path="/restaurant/menu" element={<DigitalMenuBuilder />} />
-            <Route path="/restaurant/waiters" element={<WaiterManagement />} />
+            <Route path="/restaurant/waiters" element={<Navigate to="/restaurant/employees" replace />} />
+            <Route path="/restaurant/employees" element={<EmployeeManagement />} />
             <Route path="/restaurant/reservations" element={<Reservations />} />
             <Route path="/restaurant/recipes" element={<RecipeManagement />} />
             <Route path="/restaurant/online-orders" element={<OnlineOrders />} />

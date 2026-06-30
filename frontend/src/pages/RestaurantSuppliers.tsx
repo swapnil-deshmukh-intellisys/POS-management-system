@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   Plus, Search, Trash2, Edit2, CheckCircle, MessageSquare,
-  Mail, Printer, AlertCircle, ArrowRight, X
+  Mail, Printer, AlertCircle, ArrowRight, X, ChevronRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -717,6 +717,13 @@ export const Suppliers: React.FC = () => {
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 text-left font-['Outfit',sans-serif] antialiased text-black p-4 select-none">
+
+      {/* Breadcrumb Navigation */}
+      <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+        <span className="hover:text-slate-800 transition cursor-pointer" onClick={() => navigate('/restaurant')}>Restaurant</span>
+        <ChevronRight className="w-3 h-3 text-slate-400" />
+        <span className="text-emerald-705 font-extrabold">Procurement & Suppliers</span>
+      </div>
 
       {/* Title Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
@@ -1689,12 +1696,12 @@ export const Suppliers: React.FC = () => {
         </div>
       )}
 
-      {/* Large Purchase Order Details Modal (Redesigned) */}
+      {/* Large Purchase Order Details Drawer (Slide-in) */}
       {selectedPO && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white w-[90%] h-[90vh] rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden relative text-left">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex justify-end z-50 transition-opacity">
+          <div className="bg-white w-full max-w-3xl h-full shadow-2xl border-l border-slate-200 flex flex-col overflow-hidden relative text-left animate-slide-in">
 
-            {/* Modal Header */}
+            {/* Drawer Header */}
             <div className="bg-slate-50 border-b border-slate-200 p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
               <div>
                 <h3 className="text-xl font-medium text-black uppercase tracking-tight">
@@ -2009,8 +2016,8 @@ export const Suppliers: React.FC = () => {
       )}
 
       {viewingRequest && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 p-6 relative max-h-[85vh] flex flex-col text-left">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex justify-end z-50 transition-opacity">
+          <div className="bg-white w-full max-w-xl h-full shadow-2xl border-l border-slate-200 p-6 relative flex flex-col text-left overflow-y-auto animate-slide-in">
             <button
               onClick={() => setViewingRequest(null)}
               className="absolute top-4 right-4 text-black hover:text-slate-700 cursor-pointer"

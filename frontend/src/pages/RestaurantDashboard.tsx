@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   TrendingUp,
   Clipboard,
   AlertTriangle,
   DollarSign,
-  Utensils
+  Utensils,
+  ChevronRight
 } from 'lucide-react';
 
 export const RestaurantDashboard: React.FC = () => {
   const { user, apiRequest } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState<any>(null);
 
@@ -69,9 +72,14 @@ export const RestaurantDashboard: React.FC = () => {
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Sales */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
+        <div 
+          onClick={() => navigate('/restaurant/reports')}
+          className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md hover:-translate-y-0.5 active:scale-95 cursor-pointer transition-all duration-200"
+        >
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Today's Sales</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              Today's Sales <ChevronRight className="w-3 h-3 text-slate-300" />
+            </span>
             {loading ? (
               <div className="h-8 w-28 bg-slate-100 rounded animate-pulse mt-1"></div>
             ) : (
@@ -89,9 +97,14 @@ export const RestaurantDashboard: React.FC = () => {
         </div>
 
         {/* Live Tables */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
+        <div 
+          onClick={() => navigate('/restaurant/tables')}
+          className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md hover:-translate-y-0.5 active:scale-95 cursor-pointer transition-all duration-200"
+        >
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Tables</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              Active Tables <ChevronRight className="w-3 h-3 text-slate-300" />
+            </span>
             {loading ? (
               <div className="h-8 w-20 bg-slate-100 rounded animate-pulse mt-1"></div>
             ) : (
@@ -109,9 +122,14 @@ export const RestaurantDashboard: React.FC = () => {
         </div>
 
         {/* Kitchen Queues */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
+        <div 
+          onClick={() => navigate('/restaurant/kitchen-dashboard')}
+          className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md hover:-translate-y-0.5 active:scale-95 cursor-pointer transition-all duration-200"
+        >
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Kitchen Queue</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              Kitchen Queue <ChevronRight className="w-3 h-3 text-slate-300" />
+            </span>
             {loading ? (
               <div className="h-8 w-24 bg-slate-100 rounded animate-pulse mt-1"></div>
             ) : (
@@ -119,7 +137,7 @@ export const RestaurantDashboard: React.FC = () => {
                 {metrics?.kitchen?.pending || 0} Orders
               </h3>
             )}
-            <span className="text-amber-500 text-xs font-semibold mt-1 flex items-center gap-1">
+            <span className="text-amber-505 text-xs font-semibold mt-1 flex items-center gap-1">
               {metrics?.kitchen?.ready || 0} dishes ready to serve
             </span>
           </div>
@@ -129,9 +147,14 @@ export const RestaurantDashboard: React.FC = () => {
         </div>
 
         {/* Low Stock Alerts */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
+        <div 
+          onClick={() => navigate('/restaurant/inventory')}
+          className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md hover:-translate-y-0.5 active:scale-95 cursor-pointer transition-all duration-200"
+        >
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Low Ingredients</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              Low Ingredients <ChevronRight className="w-3 h-3 text-slate-300" />
+            </span>
             {loading ? (
               <div className="h-8 w-20 bg-slate-100 rounded animate-pulse mt-1"></div>
             ) : (

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   X, Plus, Trash2, Printer, Download,
-  Eye, Mail, MessageSquare, Check
+  Eye, Mail, MessageSquare, Check,
+  AlertCircle, CheckCircle2, Package, Send
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -431,28 +432,97 @@ export const InventoryRequests: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-        {[
-          { label: 'Pending Requests', count: pendingCount, filter: 'Pending Approval', color: 'border-t-[3px] border-amber-500' },
-          { label: 'Approved Requests', count: approvedCount, filter: 'Approved', color: 'border-t-[3px] border-blue-500' },
-          { label: 'Purchase Orders Created', count: convertedCount, filter: 'Converted', color: 'border-t-[3px] border-emerald-500' },
-          { label: 'Orders Sent', count: sentCount, filter: 'Sent', color: 'border-t-[3px] border-purple-500' }
-        ].map((card, idx) => (
-          <button
-            key={idx}
-            onClick={() => {
-              setActiveFilter(card.filter === activeFilter ? 'All' : card.filter as any);
-              setTimeout(() => {
-                document.getElementById('requests-list-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }, 100);
-            }}
-            className={`p-5 bg-white dark:bg-slate-800 rounded-2xl border ${activeFilter === card.filter ? 'border-slate-350 dark:border-slate-500 shadow-md ring-2 ring-emerald-50' : 'border-slate-100 dark:border-slate-700'} ${card.color} text-left transition-all duration-300 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_25px_-6px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 cursor-pointer w-full h-28 flex flex-col justify-between`}
-          >
-            <span className="text-xs font-semibold text-slate-550 dark:text-slate-450 uppercase tracking-wider">{card.label}</span>
-            <span className="text-3xl font-normal text-black dark:text-white block leading-none">{card.count}</span>
-          </button>
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 min-h-[110px] flex flex-col justify-between animate-pulse">
+              <div className="flex justify-between items-start">
+                <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-md w-24"></div>
+                <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-755"></div>
+              </div>
+              <div>
+                <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded-md w-16 mt-2"></div>
+                <div className="h-2 bg-slate-200 dark:bg-slate-755 rounded-md w-32 mt-2"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+          {[
+            { 
+              label: 'Pending Requests', 
+              count: pendingCount, 
+              filter: 'Pending Approval', 
+              desc: 'Awaiting store approval',
+              icon: AlertCircle,
+              bgIcon: 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 border-amber-100 dark:border-amber-900/40',
+              hoverIcon: 'group-hover:bg-amber-600',
+              activeColor: 'border-amber-500 ring-2 ring-amber-100 dark:ring-amber-955/50'
+            },
+            { 
+              label: 'Approved Requests', 
+              count: approvedCount, 
+              filter: 'Approved', 
+              desc: 'Ready for purchase order',
+              icon: CheckCircle2,
+              bgIcon: 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 border-blue-100 dark:border-blue-900/40',
+              hoverIcon: 'group-hover:bg-blue-600',
+              activeColor: 'border-blue-500 ring-2 ring-blue-100 dark:ring-blue-955/50'
+            },
+            { 
+              label: 'POs Created', 
+              count: convertedCount, 
+              filter: 'Converted', 
+              desc: 'Converted to purchase order',
+              icon: Package,
+              bgIcon: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 border-emerald-100 dark:border-emerald-900/40',
+              hoverIcon: 'group-hover:bg-emerald-600',
+              activeColor: 'border-emerald-500 ring-2 ring-emerald-100 dark:ring-emerald-955/50'
+            },
+            { 
+              label: 'Orders Sent', 
+              count: sentCount, 
+              filter: 'Sent', 
+              desc: 'Dispatched to suppliers',
+              icon: Send,
+              bgIcon: 'bg-purple-50 dark:bg-purple-950/30 text-purple-600 border-purple-100 dark:border-purple-900/40',
+              hoverIcon: 'group-hover:bg-purple-600',
+              activeColor: 'border-purple-500 ring-2 ring-purple-100 dark:ring-purple-955/50'
+            }
+          ].map((card, idx) => {
+            const Icon = card.icon;
+            const isSelected = activeFilter === card.filter;
+            return (
+              <div
+                key={idx}
+                onClick={() => {
+                  setActiveFilter(isSelected ? 'All' : card.filter as any);
+                  setTimeout(() => {
+                    document.getElementById('requests-list-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 100);
+                }}
+                className={`bg-white dark:bg-slate-800 border rounded-2xl p-4 flex flex-col justify-between min-h-[110px] shadow-sm hover:shadow-md hover:border-emerald-500 hover:bg-emerald-50/5 dark:hover:bg-slate-900/50 active:scale-[0.98] transition-all duration-300 group cursor-pointer ${isSelected ? card.activeColor : 'border-slate-200 dark:border-slate-700'}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider block">{card.label}</span>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center border shadow-xs group-hover:text-white transition-all duration-300 shrink-0 ${card.bgIcon} ${card.hoverIcon}`}>
+                    <Icon className="w-4.5 h-4.5" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-none mt-2">
+                    {card.count} Requests
+                  </h3>
+                  <span className="text-[10px] font-bold text-slate-400 mt-1.5 inline-block">
+                    {card.desc}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Request List Section */}
       <div id="requests-list-section" className="bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700 rounded-3xl p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] space-y-6">

@@ -10,7 +10,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onSearchChange, onToggleSidebar, isCollapsed = false }) => {
-  const { apiRequest, isAuthenticated } = useAuth();
+  const { apiRequest, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
   const [searchValue, setSearchValue] = useState('');
@@ -304,6 +304,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onSearchChange, onToggleSidebar,
       </div>
       {/* Control Widgets & profile */}
       <div className="flex shrink-0 items-center gap-2 sm:gap-4 lg:gap-6">
+        {user && (
+          <div className="hidden md:flex items-center bg-emerald-500/10 border border-emerald-500/35 px-3 py-1.5 rounded-full shadow-sm">
+            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2 animate-pulse"></span>
+            <span className="text-[11px] font-bold text-emerald-700 tracking-tight">
+              {user.businessType === 'Restaurant' || user.businessType === 'Cafe'
+                ? `Restaurant - ${user.employee?.role || (user.role === 'ADMIN' ? 'Admin' : user.role === 'MANAGER' ? 'Manager' : 'Staff')} Workspace`
+                : `Retail - ${user.role === 'ADMIN' ? 'Admin' : user.role === 'MANAGER' ? 'Manager' : 'Staff'} Workspace`}
+            </span>
+          </div>
+        )}
+
         {/* Notifications */}
         <div className="relative">
           <button

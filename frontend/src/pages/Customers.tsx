@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   Plus,
@@ -78,11 +78,17 @@ interface Customer {
 export const Customers: React.FC = () => {
   const auth = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // State Management
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [filterType, setFilterType] = useState<'all' | 'active' | 'repeat' | 'new' | 'today'>(() => {
+    const f = searchParams.get('filter');
+    if (f === 'active' || f === 'repeat' || f === 'new' || f === 'today') return f;
+    return 'all';
+  });
 
   // Global search input state (no input bar on this page, query received from Navbar)
   const [search, setSearch] = useState('');
@@ -136,9 +142,37 @@ export const Customers: React.FC = () => {
     };
   }, []);
 
-  // Search filtering
+  // URL Parameter Sync
+  useEffect(() => {
+    const f = searchParams.get('filter');
+    if (f === 'active' || f === 'repeat' || f === 'new' || f === 'today') {
+      setFilterType(f);
+    } else {
+      setFilterType('all');
+    }
+  }, [searchParams]);
+
+  // Search and filter type filtering
   useEffect(() => {
     let result = customers;
+
+    if (filterType === 'active') {
+      result = result.filter(c => c.status === 'Active');
+    } else if (filterType === 'repeat') {
+      result = result.filter(c => c.ordersCount > 1);
+    } else if (filterType === 'new') {
+      result = result.filter(c => {
+        const d = new Date(c.createdAt);
+        const now = new Date();
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      });
+    } else if (filterType === 'today') {
+      result = result.filter(c => {
+        const d = new Date(c.lastVisit || c.createdAt);
+        const now = new Date();
+        return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      });
+    }
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -150,7 +184,7 @@ export const Customers: React.FC = () => {
     }
 
     setFilteredCustomers(result);
-  }, [search, customers]);
+  }, [search, customers, filterType]);
 
   // Add / Edit submission
   const handleSaveCustomer = async (e: React.FormEvent) => {
@@ -274,31 +308,51 @@ export const Customers: React.FC = () => {
       </div>
 
       {/* TOP SUMMARY BAR */}
-      <div className="bg-white border border-slate-200 rounded-xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-4 text-[14px] font-normal text-[#111827] shadow-sm">
-        <div className="flex items-center gap-2">
-          <span className="text-slate-550">Total Customers:</span>
+      <div className="bg-white border border-slate-200 rounded-xl px-5 py-2.5 flex flex-wrap items-center justify-between gap-4 text-[14px] font-normal text-[#111827] shadow-sm">
+        <button
+          type="button"
+          onClick={() => setFilterType('all')}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${filterType === 'all' ? 'bg-slate-100 font-semibold text-black border border-slate-300' : 'text-slate-550 hover:bg-slate-50'}`}
+        >
+          <span>Total Customers:</span>
           <strong className="text-[#000000] font-semibold">{totalCustomers}</strong>
-        </div>
+        </button>
         <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
-        <div className="flex items-center gap-2">
-          <span className="text-slate-550">Active Customers:</span>
+        <button
+          type="button"
+          onClick={() => setFilterType('active')}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${filterType === 'active' ? 'bg-slate-100 font-semibold text-black border border-slate-300' : 'text-slate-550 hover:bg-slate-50'}`}
+        >
+          <span>Active Customers:</span>
           <strong className="text-[#000000] font-semibold">{activeCustomers}</strong>
-        </div>
+        </button>
         <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
-        <div className="flex items-center gap-2">
-          <span className="text-slate-550">Repeat Customers:</span>
+        <button
+          type="button"
+          onClick={() => setFilterType('repeat')}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${filterType === 'repeat' ? 'bg-slate-100 font-semibold text-black border border-slate-300' : 'text-slate-550 hover:bg-slate-50'}`}
+        >
+          <span>Repeat Customers:</span>
           <strong className="text-[#000000] font-semibold">{repeatCustomers}</strong>
-        </div>
+        </button>
         <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
-        <div className="flex items-center gap-2">
-          <span className="text-slate-550">New Customers:</span>
+        <button
+          type="button"
+          onClick={() => setFilterType('new')}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${filterType === 'new' ? 'bg-slate-100 font-semibold text-black border border-slate-300' : 'text-slate-550 hover:bg-slate-50'}`}
+        >
+          <span>New Customers:</span>
           <strong className="text-[#000000] font-semibold">{newCustomers}</strong>
-        </div>
+        </button>
         <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
-        <div className="flex items-center gap-2">
-          <span className="text-slate-550">Today's Customers:</span>
+        <button
+          type="button"
+          onClick={() => setFilterType('today')}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${filterType === 'today' ? 'bg-slate-100 font-semibold text-black border border-slate-300' : 'text-slate-550 hover:bg-slate-50'}`}
+        >
+          <span>Today's Customers:</span>
           <strong className="text-[#000000] font-semibold">{todaysCustomers}</strong>
-        </div>
+        </button>
       </div>
 
       {/* FULL WIDTH ERP WORKSPACE LAYOUT */}

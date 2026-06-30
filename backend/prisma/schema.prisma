@@ -30,6 +30,7 @@ model User {
   exchanges     ProductExchange[]
   branch        Branch?                 @relation(fields: [branchId], references: [id])
   sessions      LoginSession[]
+  employee      Employee?
 
   @@map("users")
 }
@@ -1100,6 +1101,7 @@ model KitchenOrderItem {
   quantity       Int
   notes          String?
   unitPrice      Float
+  status         String       @default("PENDING") // PENDING, PREPARING, READY
   kitchenOrder   KitchenOrder @relation(fields: [kitchenOrderId], references: [id], onDelete: Cascade)
   menuItem       MenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
@@ -1140,6 +1142,9 @@ model RestaurantWaiter {
   serviceTasks      ServiceTask[]
   notifications     WaiterNotification[]
   kitchenOrders     KitchenOrder[]
+
+  employeeId        String?                 @unique @map("employee_id")
+  employee          Employee?               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@map("restaurant_waiters")
 }
@@ -1481,9 +1486,108 @@ model KitchenStockRequest {
   @@index([purchaseOrderId])
   @@index([createdAt])
 }
+model Employee {
+  id             String               @id @default(uuid())
+  employeeId     String               @unique @map("employee_id")
+  name           String
+  phone          String               @unique
+  email          String?              @unique
+  department     String
+  role           String
+  joiningDate    DateTime             @map("joining_date")
+  shift          String
+  employmentType String               @map("employment_type")
+  salary         Float?
+  status         String               @default("Active")
+  photo          String?
+  notes          String?
+  restaurantId   String               @map("restaurant_id")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  
+  waiterProfile  RestaurantWaiter?
+  attendance     EmployeeAttendance[]
+  activities     EmployeeActivity[]
+  leaves         EmployeeLeave[]
+  salaries       EmployeeSalary[]
+  user           User?                @relation(fields: [userId], references: [id])
+  userId         String?              @unique @map("user_id")
 
+  @@map("restaurant_employees")
+}
 
+model EmployeeAttendance {
+  id         String   @id @default(uuid())
+  employeeId String   @map("employee_id")
+  date       DateTime @default(now())
+  status     String
+  notes      String?
+  checkIn    String?  @map("check_in")
+  checkOut   String?  @map("check_out")
+  workHours  Float?   @map("work_hours")
+  overtime   Float?   @map("overtime")
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
+  @@map("employee_attendance")
+}
 
+model EmployeeActivity {
+  id         String   @id @default(uuid())
+  employeeId String   @map("employee_id")
+  action     String
+  details    String?
+  timestamp  DateTime @default(now())
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
+  @@map("employee_activities")
+}
+
+model EmployeeShift {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  startTime       String   @map("start_time")
+  endTime         String   @map("end_time")
+  breakTime       String   @map("break_time")
+  applicableRoles String[] @map("applicable_roles")
+  restaurantId    String   @map("restaurant_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("employee_shifts")
+}
+
+model EmployeeLeave {
+  id           String   @id @default(uuid())
+  employeeId   String   @map("employee_id")
+  leaveType    String   @map("leave_type")
+  reason       String
+  startDate    DateTime @map("start_date")
+  endDate      DateTime @map("end_date")
+  status       String   @default("Pending") // Pending, Approved, Rejected
+  restaurantId String   @map("restaurant_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_leaves")
+}
+
+model EmployeeSalary {
+  id            String    @id @default(uuid())
+  employeeId    String    @map("employee_id")
+  basicSalary   Float     @map("basic_salary")
+  allowances    Float     @default(0)
+  deductions    Float     @default(0)
+  overtime      Float     @default(0)
+  bonus         Float     @default(0)
+  netSalary     Float     @map("net_salary")
+  paymentStatus String    @default("Unpaid") @map("payment_status") // Paid, Unpaid
+  paymentDate   DateTime? @map("payment_date")
+  restaurantId  String    @map("restaurant_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_salaries")
+}
 

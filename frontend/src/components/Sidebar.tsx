@@ -26,6 +26,22 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
+const getEffectiveRole = (user: any) => {
+  if (!user) return 'ADMIN';
+  if (user.employee?.role) {
+    const r = user.employee.role.toLowerCase();
+    if (r.includes('admin')) return 'ADMIN';
+    if (r.includes('manager')) return 'MANAGER';
+    if (r.includes('waiter') || r.includes('captain')) return 'WAITER';
+    if (r.includes('chef')) return 'CHEF';
+    if (r.includes('kitchen') || r.includes('helper')) return 'KITCHEN';
+    if (r.includes('inventory') || r.includes('keeper')) return 'INVENTORY';
+    if (r.includes('cashier') || r.includes('billing')) return 'CASHIER';
+    return 'EMPLOYEE';
+  }
+  return user.role;
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed = false,
   isMobileOpen = false,
@@ -40,10 +56,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const isRestaurant = user?.businessType === 'Restaurant' || user?.businessType === 'Cafe';
+  const role = getEffectiveRole(user);
 
   const retailNavItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-    { name: 'Take Order', path: '/restaurant/take-order', icon: Calculator },
     { name: 'POS Billing', path: '/billing', icon: Calculator },
     { name: 'Sales History', path: '/sales-history', icon: History },
     { name: 'Product Exchange', path: '/exchanges', icon: RefreshCw },
@@ -62,6 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const restaurantNavItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'Active Tables', path: '/restaurant/active-tables', icon: Layers },
     { name: 'Take Order', path: '/restaurant/take-order', icon: Calculator },
     { name: 'Kitchen Dashboard', path: '/restaurant/kitchen-dashboard', icon: LayoutDashboard },
     { name: 'Kitchen Orders', path: '/restaurant/kitchen', icon: Archive },
@@ -69,7 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { name: 'Inventory Requests', path: '/restaurant/inventory-requests', icon: FileText },
     { name: 'Waiter Console', path: '/restaurant/waiter-dashboard', icon: UserCheck },
     { name: 'Digital Menu', path: '/restaurant/menu', icon: Layers },
-    { name: 'Waiters Management', path: '/restaurant/waiters', icon: Users },
+    { name: 'Employee Management', path: '/restaurant/employees', icon: Users },
     { name: 'Reservations', path: '/restaurant/reservations', icon: UserCheck },
     { name: 'Inventory', path: '/restaurant/inventory', icon: Archive },
     { name: 'Suppliers', path: '/restaurant/suppliers', icon: Users },
@@ -78,7 +95,76 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { name: 'Settings', path: '/settings', icon: Settings },
   ];
 
-  const navItems = isRestaurant ? restaurantNavItems : retailNavItems;
+  const getNavItems = () => {
+    if (!isRestaurant) return retailNavItems;
+
+    if (role === 'WAITER') {
+      return [
+        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+        { name: 'Active Tables', path: '/restaurant/active-tables', icon: Layers },
+        { name: 'Take Order', path: '/restaurant/take-order', icon: Calculator },
+        { name: 'Waiter Console', path: '/restaurant/waiter-dashboard', icon: UserCheck },
+        { name: 'Tables', path: '/restaurant/tables', icon: Archive },
+        { name: 'Reservations', path: '/restaurant/reservations', icon: UserCheck },
+        { name: 'Self Service', path: '/restaurant/employees', icon: Users },
+      ];
+    }
+
+    if (role === 'KITCHEN') {
+      return [
+        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+        { name: 'Kitchen Orders', path: '/restaurant/kitchen', icon: Archive },
+        { name: 'Inventory Requests', path: '/restaurant/inventory-requests', icon: FileText },
+        { name: 'Self Service', path: '/restaurant/employees', icon: Users },
+      ];
+    }
+
+    if (role === 'CHEF') {
+      return [
+        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+        { name: 'Kitchen Dashboard', path: '/restaurant/kitchen-dashboard', icon: LayoutDashboard },
+        { name: 'Kitchen Orders', path: '/restaurant/kitchen', icon: Archive },
+        { name: 'Recipes', path: '/restaurant/recipes', icon: Package },
+        { name: 'Self Service', path: '/restaurant/employees', icon: Users },
+      ];
+    }
+
+    if (role === 'CASHIER') {
+      return [
+        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+        { name: 'Active Tables', path: '/restaurant/active-tables', icon: Layers },
+        { name: 'Take Order', path: '/restaurant/take-order', icon: Calculator },
+        { name: 'Tables', path: '/restaurant/tables', icon: Archive },
+        { name: 'Reservations', path: '/restaurant/reservations', icon: UserCheck },
+        { name: 'Self Service', path: '/restaurant/employees', icon: Users },
+      ];
+    }
+
+    if (role === 'INVENTORY') {
+      return [
+        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+        { name: 'Inventory', path: '/restaurant/inventory', icon: Archive },
+        { name: 'Suppliers', path: '/restaurant/suppliers', icon: Users },
+        { name: 'Inventory Requests', path: '/restaurant/inventory-requests', icon: FileText },
+        { name: 'Self Service', path: '/restaurant/employees', icon: Users },
+      ];
+    }
+
+    if (role === 'EMPLOYEE') {
+      return [
+        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+        { name: 'Self Service', path: '/restaurant/employees', icon: Users },
+      ];
+    }
+
+    if (role === 'MANAGER') {
+      return restaurantNavItems.filter(item => item.name !== 'Settings');
+    }
+
+    return restaurantNavItems;
+  };
+
+  const navItems = getNavItems();
 
   return (
     <>
@@ -150,7 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {user?.name || 'John Doe'}
                   </h4>
                   <span className="text-[11px] text-slate-500 font-medium capitalize mt-1 block leading-none">
-                    {user?.role?.toLowerCase() || 'admin'}
+                    {user?.employee?.role || user?.role?.toLowerCase() || 'admin'}
                   </span>
                 </div>
               )}

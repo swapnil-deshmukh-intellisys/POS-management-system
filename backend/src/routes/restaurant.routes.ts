@@ -18,6 +18,7 @@ import {
   createPublicPaymentOrder,
   getKitchenOrders,
   updateOrderStatus,
+  updateOrderItemStatus,
   getWaiters,
   createWaiter,
   updateWaiterAssignments,
@@ -53,7 +54,25 @@ import {
   editTable,
   deleteTable,
   seedDummyReadyOrders,
-  settleTableBill
+  settleTableBill,
+  getEmployees,
+  createEmployee,
+  editEmployee,
+  deleteEmployee,
+  resetAndSeedEmployees,
+  getEmployeeStats,
+  getEmployeeProfile,
+  updateEmployeeAttendance,
+  getShifts,
+  createShift,
+  editShift,
+  deleteShift,
+  getLeaves,
+  createLeave,
+  updateLeaveStatus,
+  getSalaries,
+  processSalary,
+  updateSalaryStatus
 } from '../controllers/restaurant.controller';
 import {
   getInventoryDashboard,
@@ -116,6 +135,7 @@ router.get('/orders', getKitchenOrders);
 router.post('/orders', createKitchenOrder);
 router.get('/orders/:id', getKitchenOrderById);
 router.put('/orders/:id/status', updateOrderStatus);
+router.put('/orders/items/:itemId/status', updateOrderItemStatus);
 router.get('/billing-history', getRestaurantBillingHistory);
 router.get('/table-history/:tableNumber', getTableHistoryLogs);
 
@@ -130,6 +150,32 @@ router.post('/waiters/transfer', transferWaiterTable);
 router.post('/waiters/assign', assignTable);
 router.post('/waiters/unassign', unassignTable);
 router.get('/waiters/assignment-history', getAssignmentHistory);
+
+// Employees
+router.get('/employees', getEmployees);
+router.post('/employees', createEmployee);
+router.put('/employees/:id', editEmployee);
+router.delete('/employees/:id', deleteEmployee);
+router.get('/employees/stats', getEmployeeStats);
+router.get('/employees/:id', getEmployeeProfile);
+router.post('/employees/:id/attendance', updateEmployeeAttendance);
+router.post('/employees/reset-seed', resetAndSeedEmployees);
+
+// Shifts
+router.get('/shifts', getShifts);
+router.post('/shifts', createShift);
+router.put('/shifts/:id', editShift);
+router.delete('/shifts/:id', deleteShift);
+
+// Leaves
+router.get('/leaves', getLeaves);
+router.post('/leaves', createLeave);
+router.put('/leaves/:id/status', updateLeaveStatus);
+
+// Salaries
+router.get('/salaries', getSalaries);
+router.post('/salaries/process', processSalary);
+router.put('/salaries/:id/status', updateSalaryStatus);
 
 // Service Tasks
 router.get('/service-tasks', getServiceTasks);

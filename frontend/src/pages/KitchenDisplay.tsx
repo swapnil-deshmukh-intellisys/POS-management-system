@@ -5,101 +5,122 @@ import {
   Play,
   Check,
   Bell,
-  Server,
-  Plus
+  Plus,
+  Clock,
+  User,
+  AlertTriangle,
+  CheckCircle2,
+  ChefHat,
+  RotateCcw
 } from 'lucide-react';
 
 // Define Interfaces
-interface RequestItem {
-  productName: string;
-  quantity: number | string;
-  unit: string;
-  notes?: string;
-}
-
-interface Supplier {
-  id: string;
+interface MenuItem {
   name: string;
-  companyName?: string;
-  contactPerson?: string;
-  mobile: string;
-  whatsapp?: string;
-  email?: string;
-  rating?: number;
+  price: number;
 }
 
-interface PurchaseOrder {
+interface KitchenOrderItem {
   id: string;
-  orderNumber: string;
-  status: 'Draft' | 'Pending' | 'Sent' | 'Confirmed' | 'Delivered' | 'Received';
-  expectedDeliveryDate: string;
-  totalAmount: number;
-  paymentStatus: string;
-  whatsappSentAt?: string;
-  emailSentAt?: string;
-  createdAt: string;
-  items?: any;
-  supplier?: Supplier;
+  quantity: number;
+  status: 'PENDING' | 'PREPARING' | 'READY';
+  notes?: string | null;
+  menuItem?: MenuItem;
 }
 
-interface StockRequest {
-  id: string;
-  requestNo: string;
-  requestedBy: string;
-  status: 'Pending' | 'Pending Approval' | 'Approved' | 'Rejected' | 'Converted';
-  createdAt: string;
-  items: RequestItem[];
-  approvedAt?: string;
-  convertedAt?: string;
-  purchaseOrderId?: string;
-  purchaseOrder?: PurchaseOrder;
-  createdBy?: string;
+interface Table {
+  tableNumber: string;
 }
+
+interface Waiter {
+  name: string;
+}
+
+interface KitchenOrder {
+  id: string;
+  source?: string;
+  table?: Table | null;
+  status: 'NEW' | 'ACCEPTED' | 'PREPARING' | 'PARTIALLY_READY' | 'READY' | 'COMPLETED' | 'SERVED';
+  createdAt: string;
+  acceptedAt?: string | null;
+  preparingAt?: string | null;
+  readyAt?: string | null;
+  waiter?: Waiter | null;
+  notes?: string | null;
+  items: KitchenOrderItem[];
+}
+
+const INITIAL_MOCK_ORDERS: KitchenOrder[] = [
+  {
+    id: 'ko-1045',
+    source: 'POS',
+    table: { tableNumber: 'Table T-05' },
+    status: 'PREPARING',
+    createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    waiter: { name: 'Rahul' },
+    notes: 'No Onion in Burger',
+    items: [
+      { id: 'koi-1', quantity: 2, status: 'PREPARING', menuItem: { name: 'Veg Burger', price: 140 } },
+      { id: 'koi-2', quantity: 1, status: 'READY', menuItem: { name: 'French Fries', price: 90 } },
+      { id: 'koi-3', quantity: 2, status: 'PREPARING', menuItem: { name: 'Cold Coffee', price: 120 } }
+    ]
+  },
+  {
+    id: 'ko-102',
+    source: 'QR',
+    table: { tableNumber: 'Table T-02' },
+    status: 'NEW',
+    createdAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+    waiter: { name: 'Rahul' },
+    items: [
+      { id: 'koi-4', quantity: 1, status: 'PENDING', menuItem: { name: 'Paneer Tikka', price: 199 } },
+      { id: 'koi-5', quantity: 3, status: 'PENDING', menuItem: { name: 'Butter Naan', price: 40 } }
+    ]
+  },
+  {
+    id: 'ko-103',
+    source: 'QR',
+    table: { tableNumber: 'Table T-08' },
+    status: 'NEW',
+    createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+    waiter: { name: 'Akshay' },
+    items: [
+      { id: 'koi-6', quantity: 2, status: 'PENDING', menuItem: { name: 'Chicken Biryani', price: 250 } },
+      { id: 'koi-7', quantity: 2, status: 'PENDING', menuItem: { name: 'Coke', price: 40 } }
+    ]
+  }
+];
 
 export const KitchenDisplay: React.FC = () => {
   const { apiRequest } = useAuth();
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<KitchenOrder[]>(INITIAL_MOCK_ORDERS);
   const [loading, setLoading] = useState(true);
   const [newOrderAnimationIds, setNewOrderAnimationIds] = useState<string[]>([]);
   const [nowTime, setNowTime] = useState(Date.now());
   const [activeTab, setActiveTab] = useState<'NEW' | 'PREPARING' | 'READY' | 'COMPLETED'>(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab') || params.get('filter');
-    if (tabParam === 'PREPARING' || tabParam === 'ACCEPTED') return 'PREPARING';
+    if (tabParam === 'PREPARING' || tabParam === 'ACCEPTED' || tabParam === 'PARTIALLY_READY') return 'PREPARING';
     if (tabParam === 'READY') return 'READY';
     if (tabParam === 'COMPLETED') return 'COMPLETED';
     return 'NEW';
   });
-  const [activeReadyAlert, setActiveReadyAlert] = useState<{ table: string; orderId: string } | null>(null);
-  const [delayedUploadedIds, setDelayedUploadedIds] = useState<string[]>([]);
-  const [lastNewCount, setLastNewCount] = useState(0);
-  const [toasts, setToasts] = useState<{ id: string; title: string; message: string; type: 'info' | 'success' }[]>([]);
-  const [stockRequests, setStockRequests] = useState<any[]>([]);
-  if (false) {
-    console.log(stockRequests.length);
-  }
 
-  const showToast = (title: string, message: string, type: 'info' | 'success' = 'info', duration = 6000) => {
-    const id = Date.now().toString() + Math.random().toString();
-    setToasts(prev => [...prev, { id, title, message, type }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, duration);
-  };
+  // Compact 3s toast notifications in top-right corner
+  const [toasts, setToasts] = useState<{ id: string; table: string; kotNumber: string }[]>([]);
+  const [lastNewCount, setLastNewCount] = useState(0);
 
   // Counts for each tab
   const newCount = orders.filter(o => o.status === 'NEW').length;
-  const preparingCount = orders.filter(o => o.status === 'ACCEPTED' || o.status === 'PREPARING').length;
+  const preparingCount = orders.filter(o => o.status === 'ACCEPTED' || o.status === 'PREPARING' || o.status === 'PARTIALLY_READY').length;
   const readyCount = orders.filter(o => o.status === 'READY').length;
-  const completedCount = orders.filter(o => o.status === 'COMPLETED').length;
+  const completedCount = orders.filter(o => o.status === 'COMPLETED' || o.status === 'SERVED').length;
 
-  // Realtime connection URL
   const API_BASE = window.location.hostname === 'localhost'
     ? 'http://localhost:5000/api'
     : `${window.location.protocol}//${window.location.hostname}:5000/api`;
 
-  // Play alert sound for new orders or ready waiter calls
   const playAlertSound = () => {
     try {
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -111,9 +132,9 @@ export const KitchenDisplay: React.FC = () => {
       oscillator.connect(gainNode);
       gainNode.connect(audioCtx.destination);
 
-      gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0.25, audioCtx.currentTime);
       oscillator.start();
-      oscillator.stop(audioCtx.currentTime + 0.15);
+      oscillator.stop(audioCtx.currentTime + 0.12);
 
       setTimeout(() => {
         const osc2 = audioCtx.createOscillator();
@@ -122,16 +143,16 @@ export const KitchenDisplay: React.FC = () => {
         osc2.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
         osc2.connect(gain2);
         gain2.connect(audioCtx.destination);
-        gain2.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain2.gain.setValueAtTime(0.25, audioCtx.currentTime);
         osc2.start();
-        osc2.stop(audioCtx.currentTime + 0.25);
-      }, 180);
+        osc2.stop(audioCtx.currentTime + 0.22);
+      }, 150);
     } catch (e) {
       console.warn('Audio play blocked or unsupported by browser policies');
     }
   };
 
-  const getOrderPrepTime = (order: any) => {
+  const getOrderPrepTime = (order: KitchenOrder) => {
     if (!order.items || order.items.length === 0) return 15;
     const times = order.items.map((it: any) => {
       const name = (it.menuItem?.name || '').toLowerCase();
@@ -146,994 +167,597 @@ export const KitchenDisplay: React.FC = () => {
     return Math.max(...times);
   };
 
+  const fetchOrders = async () => {
+    try {
+      const data = await apiRequest('/restaurant/orders');
+      if (Array.isArray(data)) {
+        setOrders(data);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch kitchen orders from API, using mock fallback.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSeedDummyOrders = async () => {
     try {
-      await apiRequest('/restaurant/seed-ready-orders', {
-        method: 'POST'
-      });
+      await apiRequest('/restaurant/seed-ready-orders', { method: 'POST' });
       fetchOrders();
-      showToast('Dummy Data Seeded', 'Seeded ready orders & new orders.', 'success');
     } catch (err) {
       console.warn('Failed to seed dummy data.');
     }
   };
 
-  const fetchOrders = async () => {
+  // Update overall order status
+  const handleUpdateOrderStatus = async (orderId: string, nextStatus: string) => {
     try {
-      const data = await apiRequest('/restaurant/orders');
-      if (Array.isArray(data) && data.length > 0) {
-        setOrders(data);
-        setLoading(false);
-        return;
-      }
-    } catch (err) {
-      console.warn('Failed to fetch kitchen orders from API, using mock fallback data.');
-    }
-
-    const mockActive = [
-      {
-        id: 'ko-101',
-        source: 'QR',
-        table: { tableNumber: 'Table 1' },
-        status: 'NEW',
-        createdAt: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
-        waiter: { name: 'Rahul' },
-        items: [
-          { id: 'koi-1', quantity: 2, menuItem: { name: 'Fish Fry', price: 220 } },
-          { id: 'koi-2', quantity: 4, menuItem: { name: 'Roti', price: 15 } },
-          { id: 'koi-3', quantity: 1, menuItem: { name: 'Water Bottle', price: 20 } }
-        ]
-      },
-      {
-        id: 'ko-102',
-        source: 'QR',
-        table: { tableNumber: 'Table 2' },
-        status: 'NEW',
-        createdAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-        waiter: { name: 'Rahul' },
-        items: [
-          { id: 'koi-4', quantity: 1, menuItem: { name: 'Paneer Tikka', price: 199 } },
-          { id: 'koi-5', quantity: 3, menuItem: { name: 'Butter Naan', price: 40 } }
-        ]
-      },
-      {
-        id: 'ko-103',
-        source: 'QR',
-        table: { tableNumber: 'Table 3' },
-        status: 'NEW',
-        createdAt: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
-        waiter: { name: 'Akshay' },
-        items: [
-          { id: 'koi-6', quantity: 2, menuItem: { name: 'Chicken Biryani', price: 250 } },
-          { id: 'koi-7', quantity: 2, menuItem: { name: 'Coke', price: 40 } }
-        ]
-      },
-      {
-        id: 'ko-104',
-        source: 'QR',
-        table: { tableNumber: 'Table 4' },
-        status: 'NEW',
-        createdAt: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
-        waiter: { name: 'Ritesh' },
-        items: [
-          { id: 'koi-8', quantity: 1, menuItem: { name: 'Veg Crispy', price: 160 } },
-          { id: 'koi-9', quantity: 1, menuItem: { name: 'Manchurian', price: 150 } },
-          { id: 'koi-10', quantity: 1, menuItem: { name: 'Veg Fried Rice', price: 140 } }
-        ]
-      },
-      {
-        id: 'ko-105',
-        source: 'QR',
-        table: { tableNumber: 'Table 5' },
-        status: 'NEW',
-        createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-        waiter: { name: 'Akshay' },
-        items: [
-          { id: 'koi-11', quantity: 2, menuItem: { name: 'Pomfret Fry', price: 320 } },
-          { id: 'koi-12', quantity: 1, menuItem: { name: 'Jeera Rice Full', price: 120 } }
-        ]
-      },
-      {
-        id: 'ko-106',
-        source: 'QR',
-        table: { tableNumber: 'Table 6' },
-        status: 'NEW',
-        createdAt: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
-        waiter: { name: 'Akshay' },
-        items: [
-          { id: 'koi-13', quantity: 2, menuItem: { name: 'Garlic Bread', price: 99 } },
-          { id: 'koi-14', quantity: 2, menuItem: { name: 'Sprite', price: 40 } }
-        ]
-      },
-      {
-        id: 'ko-107',
-        source: 'QR',
-        table: { tableNumber: 'Table 7' },
-        status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-        waiter: { name: 'Ritesh' },
-        items: [
-          { id: 'koi-15', quantity: 1, menuItem: { name: 'Chicken Kadai', price: 240 } },
-          { id: 'koi-16', quantity: 4, menuItem: { name: 'Butter Roti', price: 20 } },
-          { id: 'koi-17', quantity: 2, menuItem: { name: 'Water Bottle', price: 20 } }
-        ]
-      },
-      {
-        id: 'ko-108',
-        source: 'QR',
-        table: { tableNumber: 'Table 8' },
-        status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 9 * 60 * 1000).toISOString(),
-        waiter: { name: 'Ritesh' },
-        items: [
-          { id: 'koi-18', quantity: 2, menuItem: { name: 'Veg Fried Rice', price: 140 } },
-          { id: 'koi-19', quantity: 2, menuItem: { name: 'Sprite', price: 40 } }
-        ]
-      },
-      {
-        id: 'ko-109',
-        source: 'QR',
-        table: { tableNumber: 'Table 9' },
-        status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
-        waiter: { name: 'Rahul' },
-        items: [
-          { id: 'koi-20', quantity: 1, menuItem: { name: 'Margherita Pizza', price: 299 } },
-          { id: 'koi-21', quantity: 2, menuItem: { name: 'Pepsi', price: 40 } }
-        ]
-      },
-      {
-        id: 'ko-110',
-        source: 'QR',
-        table: { tableNumber: 'Table 10' },
-        status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-        waiter: { name: 'Akshay' },
-        items: [
-          { id: 'koi-22', quantity: 1, menuItem: { name: 'Paneer Butter Masala', price: 220 } },
-          { id: 'koi-23', quantity: 3, menuItem: { name: 'Butter Naan', price: 40 } },
-          { id: 'koi-24', quantity: 1, menuItem: { name: 'Lassi', price: 60 } }
-        ]
-      },
-      {
-        id: 'ko-111',
-        source: 'QR',
-        table: { tableNumber: 'Table 11' },
-        status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
-        waiter: { name: 'Ritesh' },
-        items: [
-          { id: 'koi-25', quantity: 2, menuItem: { name: 'Hakka Noodles', price: 150 } },
-          { id: 'koi-26', quantity: 2, menuItem: { name: 'Sprite', price: 40 } }
-        ]
-      },
-      {
-        id: 'ko-112',
-        source: 'QR',
-        table: { tableNumber: 'Table 12' },
-        status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 7 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
-        waiter: { name: 'Adesh' },
-        items: [
-          { id: 'koi-27', quantity: 2, menuItem: { name: 'Cheese Burger', price: 140 } },
-          { id: 'koi-28', quantity: 2, menuItem: { name: 'French Fries', price: 90 } },
-          { id: 'koi-29', quantity: 2, menuItem: { name: 'Coke', price: 40 } }
-        ]
-      },
-      {
-        id: 'ko-113',
-        source: 'QR',
-        table: { tableNumber: 'Table 13' },
-        status: 'ACCEPTED',
-        acceptedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-        createdAt: new Date(Date.now() - 7 * 60 * 1000).toISOString(),
-        waiter: { name: 'Rahul' },
-        items: [
-          { id: 'koi-30', quantity: 1, menuItem: { name: 'Prawns Masala', price: 280 } },
-          { id: 'koi-31', quantity: 2, menuItem: { name: 'Butter Naan', price: 40 } }
-        ]
-      },
-      {
-        id: 'ko-114',
-        source: 'QR',
-        table: { tableNumber: 'Table 14' },
-        status: 'READY',
-        createdAt: new Date(Date.now() - 14 * 60 * 1000).toISOString(),
-        waiter: { name: 'Akshay' },
-        items: [
-          { id: 'koi-32', quantity: 1, menuItem: { name: 'Hakka Noodles', price: 150 } },
-          { id: 'koi-33', quantity: 1, menuItem: { name: 'Manchurian', price: 150 } }
-        ]
-      },
-      {
-        id: 'ko-115',
-        source: 'QR',
-        table: { tableNumber: 'Table 15' },
-        status: 'READY',
-        createdAt: new Date(Date.now() - 16 * 60 * 1000).toISOString(),
-        waiter: { name: 'Ritesh' },
-        items: [
-          { id: 'koi-34', quantity: 1, menuItem: { name: 'Paneer Tikka', price: 199 } },
-          { id: 'koi-35', quantity: 2, menuItem: { name: 'Lassi', price: 60 } }
-        ]
-      },
-      {
-        id: 'ko-116',
-        source: 'QR',
-        table: { tableNumber: 'Table 16' },
-        status: 'READY',
-        createdAt: new Date(Date.now() - 18 * 60 * 1000).toISOString(),
-        waiter: { name: 'Adesh' },
-        items: [
-          { id: 'koi-36', quantity: 2, menuItem: { name: 'Chicken Burger', price: 160 } },
-          { id: 'koi-37', quantity: 1, menuItem: { name: 'French Fries', price: 90 } },
-          { id: 'koi-38', quantity: 1, menuItem: { name: 'Pepsi', price: 40 } }
-        ]
-      },
-      {
-        id: 'ko-117',
-        source: 'QR',
-        table: { tableNumber: 'Table 17' },
-        status: 'READY',
-        createdAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
-        waiter: { name: 'Rahul' },
-        items: [
-          { id: 'koi-39', quantity: 1, menuItem: { name: 'Veg Fried Rice', price: 140 } },
-          { id: 'koi-40', quantity: 1, menuItem: { name: 'Manchurian', price: 150 } }
-        ]
-      },
-      {
-        id: 'ko-118',
-        source: 'QR',
-        table: { tableNumber: 'Table 18' },
-        status: 'READY',
-        createdAt: new Date(Date.now() - 22 * 60 * 1000).toISOString(),
-        waiter: { name: 'Akshay' },
-        items: [
-          { id: 'koi-41', quantity: 1, menuItem: { name: 'Margherita Pizza', price: 299 } },
-          { id: 'koi-42', quantity: 1, menuItem: { name: 'Garlic Bread', price: 99 } },
-          { id: 'koi-43', quantity: 1, menuItem: { name: 'Sprite', price: 40 } }
-        ]
-      },
-      {
-        id: 'ko-119',
-        source: 'QR',
-        table: { tableNumber: 'Table 19' },
-        status: 'READY',
-        createdAt: new Date(Date.now() - 24 * 60 * 1000).toISOString(),
-        waiter: { name: 'Ritesh' },
-        items: [
-          { id: 'koi-44', quantity: 1, menuItem: { name: 'Pomfret Fry', price: 320 } },
-          { id: 'koi-45', quantity: 1, menuItem: { name: 'Jeera Rice Full', price: 120 } }
-        ]
-      },
-      {
-        id: 'ko-120',
-        source: 'QR',
-        table: { tableNumber: 'Table 20' },
-        status: 'READY',
-        createdAt: new Date(Date.now() - 26 * 60 * 1000).toISOString(),
-        waiter: { name: 'Adesh' },
-        items: [
-          { id: 'koi-46', quantity: 1, menuItem: { name: 'Chicken Kadai', price: 240 } },
-          { id: 'koi-47', quantity: 2, menuItem: { name: 'Butter Naan', price: 40 } },
-          { id: 'koi-48', quantity: 1, menuItem: { name: 'Water Bottle', price: 20 } }
-        ]
-      }
-    ];
-    setOrders(mockActive);
-    setLoading(false);
-  };
-
-  // Generate 25 realistic dummy requests
-  const generateDummyRequests = (): StockRequest[] => {
-    const itemsPool = [
-      { name: 'Tomato', unit: 'Kg' },
-      { name: 'Onion', unit: 'Kg' },
-      { name: 'Cheese', unit: 'Kg' },
-      { name: 'Paneer', unit: 'Kg' },
-      { name: 'Oil', unit: 'Liter' },
-      { name: 'Milk', unit: 'Liter' },
-      { name: 'Butter', unit: 'Kg' },
-      { name: 'Rice', unit: 'Kg' },
-      { name: 'Garlic', unit: 'Kg' },
-      { name: 'Ginger', unit: 'Kg' },
-      { name: 'Capsicum', unit: 'Kg' },
-      { name: 'Salt', unit: 'Kg' }
-    ];
-
-    const roles = ['Kitchen Manager', 'Chef Adesh', 'Kitchen Staff', 'Sous Chef Rohan'];
-    const statuses: ('Pending Approval' | 'Approved' | 'Converted')[] = ['Pending Approval', 'Approved', 'Converted'];
-    const baseRequests: StockRequest[] = [];
-
-    const now = new Date();
-
-    for (let i = 1; i <= 25; i++) {
-      const status = statuses[i % 3];
-      const dateOffsetDays = i;
-      const createdAt = new Date(now.getTime() - dateOffsetDays * 6 * 3600 * 1000);
-      
-      const itemsCount = 1 + (i % 4);
-      const itemsList: RequestItem[] = [];
-      for (let j = 0; j < itemsCount; j++) {
-        const itemObj = itemsPool[(i + j) % itemsPool.length];
-        const qty = 5 + ((i * j * 3) % 45);
-        itemsList.push({
-          productName: itemObj.name,
-          quantity: qty,
-          unit: itemObj.unit,
-          notes: j === 0 ? 'Urgent reorder for weekend rush.' : ''
-        });
-      }
-
-      baseRequests.push({
-        id: `dummy-req-${i}`,
-        requestNo: `KR-2026-${String(100 + i).padStart(3, '0')}`,
-        requestedBy: roles[i % roles.length],
-        status,
-        createdAt: createdAt.toISOString(),
-        items: itemsList,
-        approvedAt: status !== 'Pending Approval' ? new Date(createdAt.getTime() + 45 * 60 * 1000).toISOString() : undefined,
-        convertedAt: status === 'Converted' ? new Date(createdAt.getTime() + 2 * 3600 * 1000).toISOString() : undefined,
-        purchaseOrder: status === 'Converted' ? {
-          id: `dummy-po-${i}`,
-          orderNumber: `PO-2026-${String(200 + i).padStart(3, '0')}`,
-          status: i % 2 === 0 ? 'Sent' : 'Delivered',
-          expectedDeliveryDate: new Date(createdAt.getTime() + 4 * 24 * 3600 * 1000).toISOString(),
-          totalAmount: 1500 + (i * 250),
-          paymentStatus: i % 2 === 0 ? 'Pending' : 'Paid',
-          whatsappSentAt: new Date(createdAt.getTime() + 3 * 3600 * 1000).toISOString(),
-          emailSentAt: new Date(createdAt.getTime() + 3.5 * 3600 * 1000).toISOString(),
-          createdAt: new Date(createdAt.getTime() + 2 * 3600 * 1000).toISOString(),
-          items: itemsList.map(it => ({ ...it, purchasePrice: 120 })),
-          supplier: {
-            id: `dummy-sup-${i}`,
-            name: i % 2 === 0 ? 'ABC Traders' : 'XYZ Foods',
-            contactPerson: i % 2 === 0 ? 'Amit Patel' : 'Rahul Sharma',
-            mobile: i % 2 === 0 ? '9123456789' : '9876543210',
-            email: i % 2 === 0 ? 'orders@abctraders.com' : 'sales@xyzfoods.com',
-            rating: i % 2 === 0 ? 4.8 : 4.2
-          }
-        } : undefined
-      });
-    }
-
-    return baseRequests;
-  };
-
-  // Fetch Stock Requests list
-  const fetchStockRequests = async () => {
-    try {
-      const res = await apiRequest('/suppliers/kitchen-requests');
-      const dbRequests = Array.isArray(res) ? res : [];
-      const dbRequestNos = new Set(dbRequests.map(r => r.requestNo));
-      const dummyRequests = generateDummyRequests().filter(r => !dbRequestNos.has(r.requestNo));
-      
-      const finalRequests = [...dbRequests, ...dummyRequests];
-      finalRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      
-      setStockRequests(finalRequests);
-    } catch (e) {
-      console.warn('Failed to fetch stock requests list.');
-      const dummyRequests = generateDummyRequests();
-      dummyRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setStockRequests(dummyRequests);
-    }
-  };
-
-  const handleUpdateStatus = async (orderId: string, nextStatus: string, estTime?: number) => {
-    try {
-      await apiRequest(`/restaurant/orders/${orderId}/status`, {
+      const updatedOrder = await apiRequest(`/restaurant/orders/${orderId}/status`, {
         method: 'PUT',
-        body: JSON.stringify({
-          status: nextStatus,
-          estimatedPrepTime: estTime
-        })
+        body: JSON.stringify({ status: nextStatus })
       });
-    } catch (err) {
-      console.warn('API sync failed, using frontend state update.');
-    }
 
-    // Instantly transition local React state
-    setOrders(prev => {
-      const matched = prev.find(o => o.id === orderId);
-      if (!matched) return prev;
+      setOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
 
       if (nextStatus === 'READY') {
-        playAlertSound();
-        const table = matched.table?.tableNumber || 'Takeaway';
-        const orderShort = orderId.slice(-4).toUpperCase();
-        setActiveReadyAlert({ table, orderId: orderShort });
-        setTimeout(() => setActiveReadyAlert(null), 4000); // Disappear after 4 seconds
+        triggerReadyNotification(updatedOrder);
       }
-
-      return prev.map(o => {
+    } catch (err) {
+      console.warn('API update failed, updating local state.');
+      setOrders(prev => prev.map(o => {
         if (o.id === orderId) {
-          const updated: any = {
+          const nextItems = o.items.map(it => ({
+            ...it,
+            status: (nextStatus === 'READY' ? 'READY' : nextStatus === 'PREPARING' ? 'PREPARING' : 'PENDING') as any
+          }));
+          const updated: KitchenOrder = {
             ...o,
-            status: nextStatus,
-            estimatedPrepTime: estTime || o.estimatedPrepTime
+            status: nextStatus as any,
+            items: nextItems,
+            readyAt: nextStatus === 'READY' ? new Date().toISOString() : o.readyAt,
+            preparingAt: nextStatus === 'PREPARING' ? new Date().toISOString() : o.preparingAt
           };
-          if (nextStatus === 'ACCEPTED') {
-            updated.acceptedAt = new Date().toISOString();
-          } else if (nextStatus === 'PREPARING') {
-            updated.preparingAt = new Date().toISOString();
-          } else if (nextStatus === 'READY') {
-            updated.readyAt = new Date().toISOString();
+          if (nextStatus === 'READY') {
+            triggerReadyNotification(updated);
           }
           return updated;
         }
         return o;
-      });
-    });
+      }));
+    }
   };
 
-  // Listen to URL search parameters for tab selection
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tabParam = params.get('tab') || params.get('filter') || params.get('status');
-    if (tabParam === 'PREPARING' || tabParam === 'ACCEPTED') {
-      setActiveTab('PREPARING');
-    } else if (tabParam === 'READY') {
-      setActiveTab('READY');
-    } else if (tabParam === 'COMPLETED') {
-      setActiveTab('COMPLETED');
-    } else if (tabParam === 'NEW') {
-      setActiveTab('NEW');
-    }
-  }, [window.location.search]);
+  // Update item-wise preparation status
+  const handleUpdateItemStatus = async (itemId: string, nextItemStatus: 'PENDING' | 'PREPARING' | 'READY') => {
+    try {
+      const updatedOrder = await apiRequest(`/restaurant/orders/items/${itemId}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: nextItemStatus })
+      });
 
-  // SSE Realtime Updates Handler
+      setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+
+      if (updatedOrder.status === 'READY') {
+        triggerReadyNotification(updatedOrder);
+      }
+    } catch (err) {
+      console.warn('API item update failed, updating local state.');
+      setOrders(prev => {
+        return prev.map(o => {
+          const hasItem = o.items.some(it => it.id === itemId);
+          if (!hasItem) return o;
+
+          const updatedItems = o.items.map(it => it.id === itemId ? { ...it, status: nextItemStatus } : it);
+
+          // Calculate overall status
+          let nextOrderStatus: KitchenOrder['status'] = 'NEW';
+          const isAllPending = updatedItems.every(it => it.status === 'PENDING');
+          const isAllReady = updatedItems.every(it => it.status === 'READY');
+          const hasAnyPreparing = updatedItems.some(it => it.status === 'PREPARING');
+          const hasAnyReady = updatedItems.some(it => it.status === 'READY');
+
+          if (isAllReady) {
+            nextOrderStatus = 'READY';
+          } else if (hasAnyPreparing && hasAnyReady) {
+            nextOrderStatus = 'PARTIALLY_READY';
+          } else if (hasAnyPreparing) {
+            nextOrderStatus = 'PREPARING';
+          } else if (hasAnyReady) {
+            nextOrderStatus = 'PARTIALLY_READY';
+          } else if (isAllPending) {
+            nextOrderStatus = 'NEW';
+          } else {
+            nextOrderStatus = 'PREPARING';
+          }
+
+          const updated: KitchenOrder = {
+            ...o,
+            items: updatedItems,
+            status: nextOrderStatus,
+            readyAt: nextOrderStatus === 'READY' ? new Date().toISOString() : o.readyAt
+          };
+
+          if (nextOrderStatus === 'READY') {
+            triggerReadyNotification(updated);
+          }
+
+          return updated;
+        });
+      });
+    }
+  };
+
+  const triggerReadyNotification = (order: KitchenOrder) => {
+    playAlertSound();
+    const id = Date.now().toString() + Math.random().toString();
+    const tableStr = order.table?.tableNumber || 'Takeaway';
+    const kotShort = order.id.slice(-4).toUpperCase();
+
+    // Add compact 3-second toast
+    setToasts(prev => {
+      if (prev.some(t => t.kotNumber === kotShort)) return prev;
+      return [...prev, { id, table: tableStr, kotNumber: kotShort }];
+    });
+
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 3000);
+  };
+
+  // SSE Sync
   useEffect(() => {
     fetchOrders();
-    fetchStockRequests();
 
     const sseUrl = `${API_BASE}/restaurant/realtime`;
-    console.log('[KDS SSE] Connecting to', sseUrl);
     const eventSource = new EventSource(sseUrl);
 
     eventSource.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        console.log('[KDS SSE] Event received:', payload);
-        fetchOrders();
-        fetchStockRequests();
-
-        if (payload.type === 'NEW_ORDER') {
-          const newOrder = payload.data;
+        if (payload.type === 'NEW_ORDER' || payload.type === 'ORDER_STATUS_UPDATE') {
+          const orderData = payload.data || payload;
           setOrders(prev => {
-            if (prev.some(o => o.id === newOrder.id)) return prev;
-            playAlertSound();
-            showToast('New Order Arrived', `Table: ${newOrder.table?.tableNumber || 'Takeaway'}`, 'info');
-            setNewOrderAnimationIds(ani => [...ani, newOrder.id]);
+            const exists = prev.some(o => o.id === orderData.id);
+            if (exists) {
+              return prev.map(o => o.id === orderData.id ? orderData : o);
+            }
+            // Trigger animation for new incoming order
+            setNewOrderAnimationIds(ani => [...ani, orderData.id]);
             setTimeout(() => {
-              setNewOrderAnimationIds(ani => ani.filter(id => id !== newOrder.id));
+              setNewOrderAnimationIds(ani => ani.filter(id => id !== orderData.id));
             }, 6000);
-            return [newOrder, ...prev];
+            return [orderData, ...prev];
           });
+
+          if (orderData.status === 'READY') {
+            triggerReadyNotification(orderData);
+          }
         }
       } catch (err) {
-        console.error('[KDS SSE] Error handling message:', err);
+        console.error('[KDS SSE] Parse error:', err);
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.error('[KDS SSE] Connection error:', err);
-    };
-
-    // Live update cooking timer (McDonald's style ticks every second)
-    const intervalId = setInterval(() => {
-      setNowTime(Date.now());
-    }, 1000);
+    const timer = setInterval(() => setNowTime(Date.now()), 1000);
 
     return () => {
       eventSource.close();
-      clearInterval(intervalId);
+      clearInterval(timer);
     };
   }, []);
 
-  // Listen to mutation event
-  useEffect(() => {
-    const handleMutation = () => {
-      fetchStockRequests();
-    };
-    window.addEventListener('stock-request-mutated', handleMutation);
-    return () => {
-      window.removeEventListener('stock-request-mutated', handleMutation);
-    };
-  }, []);
-
-  // Play sound ONCE immediately and show toast only when a new order arrives
+  // Alert reminder loop for new un-accepted orders
   useEffect(() => {
     if (newCount > lastNewCount) {
       playAlertSound();
-      showToast('New Orders Waiting', `${newCount} Orders Awaiting Cooking`, 'info', 7000);
     }
     setLastNewCount(newCount);
-  }, [newCount, lastNewCount]);
+  }, [newCount]);
 
-  // Persistent new order audio alert reminder loop (plays reminder every 1 minute if not accepted)
   useEffect(() => {
     if (newCount > 0) {
       const soundInterval = setInterval(() => {
         playAlertSound();
-        showToast('New Orders Waiting', `${newCount} Orders Awaiting Cooking`, 'info', 7000);
-      }, 60000); // 1 minute
+      }, 60000);
       return () => clearInterval(soundInterval);
     }
   }, [newCount]);
 
-  // Automatically check for newly delayed orders and send DB updates
-  useEffect(() => {
-    orders.forEach(order => {
-      if (order.status === 'ACCEPTED' || order.status === 'PREPARING') {
-        const start = order.preparingAt || order.acceptedAt || order.createdAt;
-        const diffMs = nowTime - new Date(start).getTime();
-        const expectedMins = getOrderPrepTime(order);
-        const isDelayed = diffMs > expectedMins * 60 * 1000;
-
-        if (isDelayed && !delayedUploadedIds.includes(order.id)) {
-          setDelayedUploadedIds(prev => [...prev, order.id]);
-          const elapsedMins = Math.floor(diffMs / 60000);
-          const updatedPrepTime = elapsedMins + 7;
-          console.log(`[KDS] Order ${order.id} is delayed! Automatically updating estimated prep time to ${updatedPrepTime} Min`);
-          handleUpdateStatus(order.id, order.status, updatedPrepTime);
-        }
-      }
-    });
-  }, [nowTime, orders, delayedUploadedIds]);
-
-  // Cooking time format MM:SS
-  const getCookingDurationString = (order: any) => {
-    if (order.status !== 'PREPARING' && order.status !== 'ACCEPTED') return '--:--';
-    const start = order.preparingAt || order.acceptedAt || order.createdAt;
-    const diffMs = nowTime - new Date(start).getTime();
-    const totalSecs = Math.max(0, Math.floor(diffMs / 1000));
-    const mins = Math.floor(totalSecs / 60);
-    const secs = totalSecs % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const isOrderDelayed = (order: any) => {
-    if (order.status === 'READY' || order.status === 'SERVED' || order.status === 'CANCELLED') return false;
+  const isOrderDelayed = (order: KitchenOrder) => {
+    if (order.status === 'READY' || order.status === 'COMPLETED' || order.status === 'SERVED') return false;
     const start = order.preparingAt || order.acceptedAt || order.createdAt;
     const diffMs = nowTime - new Date(start).getTime();
     const expectedMins = getOrderPrepTime(order);
     return diffMs > expectedMins * 60 * 1000;
   };
 
-  // Contextual live timer labels
-  const getTimingLabel = (order: any) => {
-    let timeDiff = 0;
-    let label = 'Waiting Since';
-    if (order.status === 'NEW') {
-      timeDiff = nowTime - new Date(order.createdAt).getTime();
-      label = 'Waiting Since';
-    } else if (order.status === 'ACCEPTED' || order.status === 'PREPARING') {
-      const start = order.preparingAt || order.acceptedAt || order.createdAt;
-      timeDiff = nowTime - new Date(start).getTime();
-      label = 'Cooking Since';
+  const getTimingDetails = (order: KitchenOrder) => {
+    const start = order.preparingAt || order.acceptedAt || order.createdAt;
+    const diffMs = nowTime - new Date(start).getTime();
+    const totalSecs = Math.max(0, Math.floor(diffMs / 1000));
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    const timeString = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+    let label = 'Waiting';
+    if (order.status === 'PREPARING' || order.status === 'ACCEPTED' || order.status === 'PARTIALLY_READY') {
+      label = 'Cooking';
     } else if (order.status === 'READY') {
-      const start = order.readyAt || order.preparingAt || order.acceptedAt || order.createdAt;
-      timeDiff = nowTime - new Date(start).getTime();
-      label = 'Ready Since';
+      label = 'Ready';
     }
-    const minutes = Math.max(0, Math.floor(timeDiff / 60000));
-    return `${label}: ${minutes} Min`;
+
+    return {
+      label,
+      timeString,
+      minutesElapsed: mins
+    };
   };
 
-  // Status badges & indicators matching the specific color guidelines
-  const getStatusIndicator = (order: any) => {
+  // Color Mapping
+  const getOrderCardStyles = (order: KitchenOrder) => {
     const isDelayed = isOrderDelayed(order);
     if (isDelayed) {
-      return (
-        <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-red-655 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200/60 dark:border-red-900/30 px-2.5 py-0.5 rounded-md">
-          <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
-          DELAYED
-        </span>
-      );
+      return {
+        borderClass: 'border-rose-500/80 shadow-rose-100 dark:shadow-rose-950/20',
+        badgeClass: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50',
+        badgeText: 'DELAYED'
+      };
     }
     switch (order.status) {
       case 'NEW':
-        return (
-          <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-blue-605 bg-blue-50 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-900/30 px-2.5 py-0.5 rounded-md">
-            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-            NEW
-          </span>
-        );
+        return {
+          borderClass: 'border-slate-200 dark:border-slate-800 shadow-slate-100/50 dark:shadow-slate-900/20',
+          badgeClass: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
+          badgeText: 'PENDING'
+        };
       case 'ACCEPTED':
+        return {
+          borderClass: 'border-blue-300 dark:border-blue-800/80 shadow-blue-50/50 dark:shadow-blue-950/10',
+          badgeClass: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50',
+          badgeText: 'ACCEPTED'
+        };
       case 'PREPARING':
-        return (
-          <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-amber-600 bg-amber-50 dark:bg-amber-955/40 border border-amber-200/60 dark:border-amber-900/30 px-2.5 py-0.5 rounded-md">
-            <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
-            PREPARING
-          </span>
-        );
+        return {
+          borderClass: 'border-orange-300 dark:border-orange-850/80 shadow-orange-50/50 dark:shadow-orange-950/10',
+          badgeClass: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-955/30 dark:text-orange-400 dark:border-orange-900/50',
+          badgeText: 'PREPARING'
+        };
+      case 'PARTIALLY_READY':
+        return {
+          borderClass: 'border-amber-400/80 dark:border-amber-800 shadow-amber-50/40 dark:shadow-amber-950/10',
+          badgeClass: 'bg-amber-50 text-amber-800 border-amber-250 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50',
+          badgeText: 'PARTIALLY READY'
+        };
       case 'READY':
-        return (
-          <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-900/30 px-2.5 py-0.5 rounded-md">
-            <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-            READY
-          </span>
-        );
+        return {
+          borderClass: 'border-emerald-400 dark:border-emerald-800 shadow-emerald-50 dark:shadow-emerald-950/10',
+          badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-250 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50',
+          badgeText: 'READY TO SERVE'
+        };
       default:
-        return (
-          <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-slate-500 bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 px-2.5 py-0.5 rounded-md">
-            <span className="w-2 h-2 bg-slate-400 rounded-full"></span>
-            SERVED
-          </span>
-        );
+        return {
+          borderClass: 'border-slate-200 dark:border-slate-800 shadow-sm',
+          badgeClass: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
+          badgeText: 'SERVED'
+        };
     }
   };
 
-  const renderActionButtons = (order: any) => {
-    switch (order.status) {
-      case 'NEW':
-        return (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleUpdateStatus(order.id, 'PREPARING');
-            }}
-            className="bg-orange-500 hover:bg-orange-600 text-white font-bold h-[36px] px-4 rounded-xl text-[14px] tracking-wider transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-1.5 w-full cursor-pointer"
-          >
-            <Play className="w-4 h-4" />
-            <span>START COOKING</span>
-          </button>
-        );
-      case 'ACCEPTED':
-      case 'PREPARING':
-        return (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleUpdateStatus(order.id, 'READY');
-            }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-[36px] px-4 rounded-xl text-[14px] tracking-wider transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-1.5 w-full cursor-pointer"
-          >
-            <Check className="w-4 h-4" />
-            <span>READY</span>
-          </button>
-        );
-      default:
-        return (
-          <span className="text-slate-400 dark:text-slate-500 font-extrabold text-xs">COMPLETED</span>
-        );
-    }
-  };
-
-  // Grouping orders by tab status - newest orders always on top (descending created time)
-  const filterOrdersByTab = () => {
-    const sortedActive = [...orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const getFilteredOrders = () => {
+    const sorted = [...orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     switch (activeTab) {
       case 'NEW':
-        return sortedActive.filter(o => o.status === 'NEW');
+        return sorted.filter(o => o.status === 'NEW');
       case 'PREPARING':
-        return sortedActive.filter(o => o.status === 'ACCEPTED' || o.status === 'PREPARING');
+        return sorted.filter(o => o.status === 'ACCEPTED' || o.status === 'PREPARING' || o.status === 'PARTIALLY_READY');
       case 'READY':
-        return sortedActive.filter(o => o.status === 'READY');
+        return sorted.filter(o => o.status === 'READY');
       case 'COMPLETED':
-        return sortedActive.filter(o => o.status === 'COMPLETED');
+        return sorted.filter(o => o.status === 'COMPLETED' || o.status === 'SERVED');
       default:
         return [];
     }
   };
 
-  const displayedOrders = filterOrdersByTab();
+  const displayedOrders = getFilteredOrders();
 
   return (
-    <div className="space-y-6 text-slate-900 dark:text-slate-100 relative max-w-7xl mx-auto p-4 select-none" style={{ fontFamily: "'Trebuchet MS', 'Inter', sans-serif" }}>
-      {stylesInject}
-
-      {/* Toast Notifications Container */}
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
+    <div className="space-y-6 text-slate-850 dark:text-slate-100 max-w-7xl mx-auto p-4 select-none" style={{ fontFamily: "'Inter', sans-serif" }}>
+      {/* Toast Notifications Container (Compact, Top-Right Corner, Stacking) */}
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-3 max-w-xs w-full pointer-events-none">
         {toasts.map(toast => (
           <div
             key={toast.id}
-            className={`pointer-events-auto p-4 rounded-xl shadow-2xl border transition-all duration-350 transform translate-y-0 scale-100 flex flex-col gap-1.5 animate-bounce-in ${toast.type === 'success'
-              ? 'bg-emerald-600 text-white border-emerald-500'
-              : 'bg-orange-600 text-white border-orange-500'
-              }`}
+            className="bg-slate-900/95 dark:bg-slate-950/95 text-white p-4 rounded-xl shadow-xl border border-emerald-500/35 flex items-start gap-3 pointer-events-auto transition-all duration-300 animate-slide-in w-72"
           >
-            <div className="flex items-center justify-between">
-              <span className="font-extrabold text-[10px] uppercase tracking-wider opacity-90">
-                {toast.type === 'success' ? 'Ready Alert' : 'New Order Alert'}
-              </span>
-              <span className="text-sm">🔔</span>
+            <div className="w-9 h-9 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
+              🍽
             </div>
-            <div className="font-black text-sm">{toast.title}</div>
-            <div className="text-xs opacity-90">{toast.message}</div>
+            <div className="flex-1 min-w-0 text-left">
+              <div className="font-extrabold text-xs text-emerald-400 tracking-wider uppercase">Order Ready</div>
+              <div className="font-extrabold text-sm mt-0.5 text-white leading-tight">{toast.table}</div>
+              <div className="text-[11px] text-slate-400 font-semibold mt-0.5">KOT #{toast.kotNumber}</div>
+              <div className="text-[11px] text-slate-355 font-medium mt-1">Ready for Serving</div>
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Flashing Ready Waiter Alert Overlay */}
-      {activeReadyAlert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-emerald-600 text-white p-8 rounded-2xl shadow-2xl border border-emerald-400/50 text-center animate-bounce-in max-w-sm w-full space-y-4">
-            <span className="text-5xl animate-bounce block">🛎️</span>
-            <h2 className="text-2xl font-black uppercase tracking-tight">Order Ready</h2>
-            <div className="border-t border-dashed border-emerald-400/50 my-2"></div>
-            <p className="text-2xl font-black">{activeReadyAlert.table}</p>
-            <p className="text-lg font-bold">Order #{activeReadyAlert.orderId}</p>
-            <p className="text-sm text-emerald-100 font-semibold mt-2">Waiter Notified Successfully</p>
+      {/* Modern KDS Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-[#0c1024] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-850 shadow-sm">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300">
+            <ChefHat className="w-5.5 h-5.5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-extrabold text-slate-850 dark:text-white tracking-tight flex items-center gap-2">
+              Kitchen Workspace
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">Real-time KOT dispatching & item-wise preparation workflow</p>
           </div>
         </div>
-      )}
 
-      {/* SECTION 1: Kitchen Dashboard Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900 text-white p-4 rounded-xl shadow-md">
-        <div className="flex items-center gap-3">
-          <Server className="w-5 h-5 text-emerald-400" />
-          <h1 className="text-xl font-extrabold tracking-tight">KITCHEN WORKSPACE</h1>
-          <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={() => navigate('/restaurant/inventory-requests')}
-            className="bg-emerald-650 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-600/10"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>CREATE REQUEST</span>
-          </button>
-          <button
-            onClick={() => navigate('/restaurant/suppliers?tab=requests')}
-            className="bg-purple-650 hover:bg-purple-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5 cursor-pointer shadow-xs"
-          >
-            <span>VIEW SOURCING REQUESTS</span>
+            <span>Create Stock Request</span>
           </button>
           <button
             onClick={playAlertSound}
-            className="bg-slate-700 hover:bg-slate-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5 cursor-pointer"
+            className="bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Bell className="w-3.5 h-3.5" />
-            <span>BELL TEST</span>
+            <span>Bell Test</span>
           </button>
           <button
             onClick={handleSeedDummyOrders}
-            className="bg-blue-650 hover:bg-blue-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-black transition-all active:scale-[0.96] flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Seed dummy orders"
           >
-            <span>SEED DATA</span>
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Seed KOTs</span>
           </button>
         </div>
       </div>
 
+      {/* Tabs Container */}
+      <div className="flex bg-slate-100/70 dark:bg-slate-900/60 p-1.5 rounded-xl border border-slate-200/50 dark:border-slate-855">
+        {[
+          { tabId: 'NEW', label: 'New Orders', count: newCount, activeText: 'text-blue-600 dark:text-blue-400 border-blue-600' },
+          { tabId: 'PREPARING', label: 'Preparing', count: preparingCount, activeText: 'text-orange-600 dark:text-orange-400 border-orange-500' },
+          { tabId: 'READY', label: 'Ready to Serve', count: readyCount, activeText: 'text-emerald-600 dark:text-emerald-400 border-emerald-500' },
+          { tabId: 'COMPLETED', label: 'Completed', count: completedCount, activeText: 'text-slate-700 dark:text-slate-300 border-slate-600' }
+        ].map(t => (
+          <button
+            key={t.tabId}
+            onClick={() => setActiveTab(t.tabId as any)}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === t.tabId
+                ? 'bg-white dark:bg-[#0c1024] shadow-sm text-slate-900 dark:text-white border-b-2 ' + t.activeText
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+              }`}
+          >
+            <span>{t.label}</span>
+            <span className="px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-slate-250/60 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
 
-      {/* SECTION 3: Kitchen Orders Area */}
-      <div className="space-y-4">
-        <h2 className="text-[18px] font-medium text-black dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Kitchen Orders</h2>
-        
-        {/* Tab Selectors - Black Bold Titles */}
-        <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
-          {[
-            { tabId: 'NEW', label: 'NEW', count: newCount },
-            { tabId: 'PREPARING', label: 'PREPARING', count: preparingCount },
-            { tabId: 'READY', label: 'READY', count: readyCount },
-            { tabId: 'COMPLETED', label: 'COMPLETED', count: completedCount }
-          ].map(t => (
-            <button
-              key={t.tabId}
-              onClick={() => setActiveTab(t.tabId as any)}
-              className={`flex-1 flex items-center justify-center gap-2.5 py-3 rounded-lg text-base tracking-wider transition-all cursor-pointer ${activeTab === t.tabId
-                ? 'bg-white dark:bg-slate-700 shadow-sm text-black dark:text-white font-extrabold border-b-2 border-black dark:border-white'
-                : 'text-slate-500 hover:text-slate-850 dark:hover:text-slate-300 font-bold'
-                }`}
-            >
-              <span className="text-black dark:text-white">{t.label}</span>
-              <span className="px-2 py-0.5 rounded-full text-xs font-black bg-slate-200 dark:bg-slate-800 text-black dark:text-white">
-                {t.count}
-              </span>
-            </button>
+      {/* KDS Active Card Grid */}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-white dark:bg-[#0c1024] border border-slate-200/60 dark:border-slate-850 p-5 rounded-2xl shadow-sm animate-pulse space-y-4">
+              <div className="h-5 w-24 bg-slate-200 dark:bg-slate-850 rounded"></div>
+              <div className="space-y-2 py-4">
+                <div className="h-4 w-full bg-slate-200 dark:bg-slate-850 rounded"></div>
+                <div className="h-4 w-4/5 bg-slate-200 dark:bg-slate-855 rounded"></div>
+              </div>
+              <div className="h-9 w-full bg-slate-200 dark:bg-slate-850 rounded-xl"></div>
+            </div>
           ))}
         </div>
-
-        {/* Kitchen Order Board */}
-        <div className="bg-white dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-sm overflow-hidden">
-          <div className="grid grid-cols-[140px_130px_2.5fr_1.5fr_140px_160px] gap-4 bg-slate-100 dark:bg-slate-800/50 p-4 border-b border-slate-200 dark:border-slate-700 text-xs font-extrabold uppercase text-slate-955 dark:text-white tracking-wider">
-            <div>TABLE NUMBER</div>
-            <div>ORDER NUMBER</div>
-            <div>ORDERED ITEMS</div>
-            <div>PREPARATION TIME</div>
-            <div>STATUS</div>
-            <div className="text-right font-extrabold">ACTION</div>
+      ) : displayedOrders.length === 0 ? (
+        <div className="bg-white dark:bg-[#0c1024] border border-slate-200/60 dark:border-slate-850 rounded-3xl p-12 text-center max-w-xl mx-auto space-y-4 shadow-sm">
+          <div className="w-14 h-14 bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-600 rounded-full flex items-center justify-center mx-auto border border-slate-100 dark:border-slate-800">
+            <ChefHat className="w-6.5 h-6.5" />
           </div>
+          <h3 className="text-md font-bold text-slate-850 dark:text-slate-200">No Orders in this Section</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+            There are currently no orders under the "{activeTab.toLowerCase()}" filter. New orders placed will appear here in real time.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {displayedOrders.map(order => {
+            const { borderClass, badgeClass, badgeText } = getOrderCardStyles(order);
+            const isNew = newOrderAnimationIds.includes(order.id);
+            const prepTimeMins = getOrderPrepTime(order);
+            const timing = getTimingDetails(order);
+            const isDelayed = isOrderDelayed(order);
 
-          {/* Rows */}
-          {loading ? (
-            <div className="divide-y divide-slate-100 dark:divide-slate-750">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="grid grid-cols-[140px_130px_2.5fr_1.5fr_140px_160px] gap-4 p-4 items-center animate-pulse">
-                  <div className="space-y-2">
-                    <div className="h-4.5 w-20 bg-slate-200 dark:bg-slate-700 rounded"></div>
-                    <div className="h-3.5 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
+            return (
+              <div
+                key={order.id}
+                className={`bg-white dark:bg-[#0c1024] rounded-2xl border-2 ${borderClass} shadow-md hover:shadow-lg transition-all flex flex-col justify-between overflow-hidden text-left relative ${isNew ? 'animate-bounce-in' : ''
+                  }`}
+              >
+                {/* Card Header */}
+                <div className="p-4 border-b border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-900/10 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-extrabold text-[13px] text-slate-900 dark:text-white font-mono">
+                      KOT #{order.id.slice(-4).toUpperCase()}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeClass}`}>
+                      {badgeText}
+                    </span>
                   </div>
-                  <div className="h-5 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div>
-                  <div className="space-y-2">
-                    <div className="h-4 w-48 bg-slate-200 dark:bg-slate-700 rounded"></div>
-                    <div className="h-4 w-36 bg-slate-200 dark:bg-slate-700 rounded"></div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="h-3.5 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
-                    <div className="h-3.5 w-20 bg-slate-200 dark:bg-slate-700 rounded"></div>
-                  </div>
-                  <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded-md"></div>
-                  <div className="text-right flex justify-end">
-                    <div className="h-9 w-28 bg-slate-200 dark:bg-slate-700 rounded-xl"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : displayedOrders.length === 0 ? (
-            <div className="p-12 text-center text-slate-400 dark:text-slate-500 font-bold">
-              No orders currently in this section
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100 dark:divide-slate-750 text-left">
-              {displayedOrders.map(order => {
-                const isDelayed = isOrderDelayed(order);
-                const isNew = newOrderAnimationIds.includes(order.id);
-                const prepTimeVal = getOrderPrepTime(order);
-                const isCooking = order.status === 'ACCEPTED' || order.status === 'PREPARING';
 
-                return (
-                  <div
-                    key={order.id}
-                    className={`transition-all border-b border-slate-100 dark:border-slate-750 ${isNew ? 'flash-row bg-blue-50/10 dark:bg-blue-900/5' : ''
-                      } ${isDelayed ? 'delayed-border bg-red-50/5 dark:bg-red-950/5' : ''} ${order.status === 'READY' ? 'ready-glow bg-emerald-50/5 dark:bg-emerald-950/5' : ''
-                      } hover:bg-slate-50/50 dark:hover:bg-slate-800/30`}
-                  >
-                    {/* Compact Main Row */}
-                    <div className="grid grid-cols-[140px_130px_2.5fr_1.5fr_140px_160px] gap-4 p-4 items-center text-slate-900 dark:text-slate-100 font-normal">
-                      
-                      <div className="text-base text-black font-extrabold">
-                        <div className="text-black uppercase">
-                          TABLE T{order.table?.tableNumber ? order.table.tableNumber.replace(/\D/g, '') : 'Takeaway'}
-                        </div>
-                        <div className="text-xs text-black font-bold mt-1 uppercase">
-                          WAITER: {order.waiter?.name ? order.waiter.name.toUpperCase() : 'UNASSIGNED'}
-                        </div>
-                      </div>
-
-                      <div className="text-[16px] text-black font-mono font-bold">
-                        #{order.id.slice(-4).toUpperCase()}
-                      </div>
-
-                      <div className="text-[14px] text-black space-y-1.5 font-semibold">
-                        {order.items.map((it: any, index: number) => {
-                          const match = it.notes?.match(/^\[(KOT-\d+)\]/);
-                          const kotBadge = match ? match[1] : null;
-                          const cleanNotes = match ? it.notes.replace(/^\[KOT-\d+\]\s*/, '') : it.notes;
-                          return (
-                            <div key={it.id || index} className="text-black font-extrabold text-[14px] flex flex-col">
-                              <div className="flex items-center gap-2">
-                                {kotBadge && (
-                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
-                                    {kotBadge}
-                                  </span>
-                                )}
-                                <span>{it.menuItem?.name || 'Dish'} Qty {it.quantity}</span>
-                              </div>
-                              {cleanNotes && (
-                                <span className="text-xs text-amber-605 font-bold italic ml-2 block">
-                                  ↳ Notes: "{cleanNotes}"
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })}
-                        {order.notes && (
-                          <div className="bg-amber-50/40 dark:bg-amber-950/15 border border-amber-100/35 dark:border-amber-900/20 p-2 rounded-lg mt-1 text-xs">
-                            <span className="font-extrabold text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400 block">
-                              Special Instructions:
-                            </span>
-                            <p className="font-semibold text-amber-855 dark:text-amber-300">
-                              "{order.notes}"
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="text-xs text-slate-900 dark:text-slate-350 space-y-0.5">
-                        <div>{getTimingLabel(order)}</div>
-                        {isCooking && (
-                          <div className="font-mono text-xs text-amber-600 dark:text-amber-400 font-bold">
-                            Cooking: {getCookingDurationString(order)}
-                          </div>
-                        )}
-                        {order.status !== 'READY' && (
-                          <div className={isDelayed ? 'text-red-650 dark:text-red-400 font-bold animate-pulse' : 'text-slate-400'}>
-                            Expected: {prepTimeVal} Min
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        {getStatusIndicator(order)}
-                      </div>
-
-                      <div className="text-right flex items-center justify-end">
-                        {renderActionButtons(order)}
-                      </div>
+                  <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
+                    <div className="flex items-center gap-1 font-bold text-slate-855 dark:text-slate-200">
+                      <span>🍽</span>
+                      <span>{order.table?.tableNumber || 'Takeaway'}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <User className="w-3.5 h-3.5" />
+                      <span>Waiter: {order.waiter?.name || 'Staff'}</span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <span className={`font-bold uppercase ${isDelayed ? 'text-rose-500 font-extrabold animate-pulse' : 'text-slate-400'}`}>
+                      Priority: {isDelayed ? 'High' : 'Normal'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card Body - Ordered Items */}
+                <div className="p-4 flex-grow space-y-3.5">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wider block mb-1">
+                      Ordered Items ({order.items.length})
+                    </span>
+                    <div className="space-y-0.5">
+                      {order.items.map((it) => (
+                        <div key={it.id} className="py-2.5 border-b border-slate-100/70 dark:border-slate-900 last:border-0 flex flex-col gap-1.5">
+                          <div className="flex justify-between items-start">
+                            <span className="font-extrabold text-[13px] text-slate-800 dark:text-slate-100 leading-tight">
+                              {it.menuItem?.name || 'Dish'} <strong className="text-slate-900 dark:text-white font-extrabold text-[14px]">×{it.quantity}</strong>
+                            </span>
+                          </div>
+
+                          {it.notes && (
+                            <span className="text-[11px] text-amber-600 dark:text-amber-400 italic">
+                              ↳ "{it.notes}"
+                            </span>
+                          )}
+
+                          {/* Segmented Status Selector */}
+                          <div className="flex rounded-lg overflow-hidden border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 p-0.5 shrink-0 text-[10px] font-extrabold w-fit mt-1 select-none">
+                            {[
+                              { status: 'PENDING', label: 'Pending', activeClass: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
+                              { status: 'PREPARING', label: 'Cooking', activeClass: 'bg-orange-500 text-white shadow-sm' },
+                              { status: 'READY', label: 'Ready', activeClass: 'bg-emerald-500 text-white shadow-sm' }
+                            ].map(btn => (
+                              <button
+                                key={btn.status}
+                                onClick={() => handleUpdateItemStatus(it.id, btn.status as any)}
+                                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${it.status === btn.status
+                                    ? btn.activeClass
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-455'
+                                  }`}
+                              >
+                                {btn.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Kitchen Note */}
+                  {order.notes && (
+                    <div className="bg-amber-50/40 dark:bg-amber-955/15 border border-amber-100/50 dark:border-amber-900/30 p-2.5 rounded-xl text-xs space-y-0.5">
+                      <span className="font-bold text-[9px] uppercase tracking-wider text-amber-700 dark:text-amber-400 block">
+                        Kitchen Instruction
+                      </span>
+                      <p className="font-semibold text-slate-700 dark:text-slate-300">
+                        "{order.notes}"
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card Footer */}
+                <div className="p-4 border-t border-slate-100 dark:border-slate-900 bg-slate-50/30 dark:bg-slate-900/5 space-y-3 text-xs">
+                  {/* Estimated Time Indicator */}
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-slate-500 dark:text-slate-400">
+                      {timing.label}: <strong className="font-mono text-slate-855 dark:text-white font-extrabold">{timing.timeString}</strong>
+                    </span>
+                    <span className={`flex items-center gap-1 font-bold ${isDelayed ? 'text-rose-500 animate-pulse' : 'text-slate-400'}`}>
+                      {isDelayed && <AlertTriangle className="w-3.5 h-3.5" />}
+                      {prepTimeMins} Min Limit
+                    </span>
+                  </div>
+
+                  {/* Quick Global Action Button */}
+                  {order.status === 'NEW' && (
+                    <button
+                      onClick={() => handleUpdateOrderStatus(order.id, 'PREPARING')}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-blue-600/10 transition-colors"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      <span>Accept Order</span>
+                    </button>
+                  )}
+
+                  {(order.status === 'PREPARING' || order.status === 'ACCEPTED' || order.status === 'PARTIALLY_READY') && (
+                    <button
+                      onClick={() => handleUpdateOrderStatus(order.id, 'READY')}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-600/10 transition-colors"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Mark All Ready</span>
+                    </button>
+                  )}
+
+                  {order.status === 'READY' && (
+                    <button
+                      onClick={() => handleUpdateOrderStatus(order.id, 'COMPLETED')}
+                      className="w-full bg-slate-800 hover:bg-slate-900 dark:bg-slate-900 dark:hover:bg-black text-white font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Serve Order</span>
+                    </button>
+                  )}
+
+                  {(order.status === 'COMPLETED' || order.status === 'SERVED') && (
+                    <div className="w-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-extrabold py-2 px-3 rounded-xl text-center">
+                      ✓ Served to Table
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
+
+      {/* Styled Micro-Animations Injection */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @keyframes slide-in-right {
+          0% { transform: translateX(120%); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
+        .animate-slide-in {
+          animation: slide-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes bounce-in-pop {
+          0% { transform: scale(0.92); opacity: 0; }
+          60% { transform: scale(1.03); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-bounce-in {
+          animation: bounce-in-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1) forwards;
+        }
+      `}} />
     </div>
   );
 };
-
-const stylesInject = (
-  <style dangerouslySetInnerHTML={{
-    __html: `
-    @keyframes flash-highlight {
-      0% { background-color: rgba(59, 130, 246, 0.25); }
-      100% { background-color: transparent; }
-    }
-    .flash-row {
-      animation: flash-highlight 3s ease-out forwards;
-    }
-    @keyframes bounce-in-pop {
-      0% { transform: scale(0.9); opacity: 0; }
-      50% { transform: scale(1.05); }
-      100% { transform: scale(1); opacity: 1; }
-    }
-    .animate-bounce-in {
-      animation: bounce-in-pop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-    }
-    @keyframes blink-border {
-      0% { border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 0 4px rgba(239, 68, 68, 0.1); }
-      50% { border-color: rgba(239, 68, 68, 1); box-shadow: 0 0 12px rgba(239, 68, 68, 0.3); }
-      100% { border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 0 4px rgba(239, 68, 68, 0.1); }
-    }
-    .delayed-border {
-      animation: blink-border 2s infinite;
-      border: 2px solid rgb(239, 68, 68) !important;
-    }
-    @keyframes ready-soft-glow {
-      0% { box-shadow: 0 0 6px rgba(16, 185, 129, 0.1); }
-      50% { box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
-      100% { box-shadow: 0 0 6px rgba(16, 185, 129, 0.1); }
-    }
-    .ready-glow {
-      animation: ready-soft-glow 3s infinite;
-      border-left: 4px solid rgb(16, 185, 129) !important;
-    }
-    @keyframes slide-banner-in {
-      0% { transform: translate(-50%, -40px); opacity: 0; }
-      100% { transform: translate(-50%, 0); opacity: 1; }
-    }
-    .animate-banner-slide-persistent {
-      animation: slide-banner-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    @keyframes slide-in-right {
-      0% { transform: translateX(100%); }
-      100% { transform: translateX(0); }
-    }
-    .animate-slide-in {
-      animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    .scrollbar-thin::-webkit-scrollbar {
-      width: 5px;
-    }
-    .scrollbar-thin::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    .scrollbar-thin::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 4px;
-    }
-  `}} />
-);
 
 export default KitchenDisplay;

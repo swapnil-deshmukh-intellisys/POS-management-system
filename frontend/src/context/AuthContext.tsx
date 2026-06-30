@@ -10,13 +10,23 @@ export interface User {
   businessName?: string;
   restaurantId?: string | null;
   branch?: { id: string; name: string } | null;
+  employee?: {
+    id: string;
+    employeeId: string;
+    name: string;
+    phone: string;
+    email: string | null;
+    department: string;
+    role: string;
+    status: string;
+  } | null;
 }
 
 interface AuthContextType {
   token: string | null;
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string, businessType?: string, businessName?: string) => Promise<boolean>;
+  login: (email: string, password: string, businessType?: string, businessName?: string, role?: string) => Promise<boolean>;
   googleLogin: (idToken: string) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
@@ -58,16 +68,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           logout();
         }
       } catch (err) {
-        console.warn('Backend offline. Using local mock session for John Doe.');
-        // If backend is offline, populate standard mock session matching screenshot John Doe
-        setUser({
-          id: 'mock-user-john-doe',
-          email: 'admin@pos.com',
-          name: 'John Doe',
-          role: 'ADMIN',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80',
-          branch: { id: 'branch-1', name: 'Main Branch' },
-        });
+        console.warn('Backend offline. Using local mock session.');
+        if (token && token.startsWith('mock_jwt_token_for_demo_restaurant_')) {
+          const rolePart = token.replace('mock_jwt_token_for_demo_restaurant_', '');
+          // convert lowercase_role back to Capitalized Space Role
+          const words = rolePart.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1));
+          const selectedRole = words.join(' ');
+          let userRole: 'ADMIN' | 'MANAGER' | 'CASHIER' = 'CASHIER';
+          if (selectedRole === 'Admin') userRole = 'ADMIN';
+          else if (selectedRole === 'Manager') userRole = 'MANAGER';
+          
+          setUser({
+            id: 'mock-user-demo-' + rolePart,
+            email: 'demo@restaurant.com',
+            name: `Demo ${selectedRole}`,
+            role: userRole,
+            avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${rolePart}`,
+            businessType: 'Restaurant',
+            businessName: 'Demo Restaurant',
+            restaurantId: 'mock-restaurant-id',
+            branch: null,
+            employee: {
+              id: 'mock-emp-' + rolePart,
+              employeeId: 'EMP-' + selectedRole.toUpperCase().replace(' ', '').slice(0, 3) + '-101',
+              name: `Demo ${selectedRole}`,
+              phone: '9000000000',
+              email: 'demo@restaurant.com',
+              department: 'Staff',
+              role: selectedRole,
+              status: 'Active'
+            }
+          });
+        } else {
+          // If backend is offline, populate standard mock session matching screenshot John Doe
+          setUser({
+            id: 'mock-user-john-doe',
+            email: 'admin@pos.com',
+            name: 'John Doe',
+            role: 'ADMIN',
+            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80',
+            branch: { id: 'branch-1', name: 'Main Branch' },
+          });
+        }
       } finally {
         setIsLoading(false);
       }
@@ -127,7 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [token]);
 
-  const login = async (email: string, password: string, businessType?: string, businessName?: string): Promise<boolean> => {
+  const login = async (email: string, password: string, businessType?: string, businessName?: string, role?: string): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
 
@@ -135,7 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, businessType, businessName }),
+        body: JSON.stringify({ email, password, businessType, businessName, role }),
       });
 
       if (!response.ok) {
@@ -169,6 +211,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(false);
         return true;
       }
+      
+      if (email === 'demo@restaurant.com' && password === '123456') {
+        const selectedRole = role || 'Admin';
+        const mockToken = 'mock_jwt_token_for_demo_restaurant_' + selectedRole.toLowerCase().replace(' ', '_');
+        localStorage.setItem('pos_token', mockToken);
+        setToken(mockToken);
+        
+        let userRole: 'ADMIN' | 'MANAGER' | 'CASHIER' = 'CASHIER';
+        if (selectedRole === 'Admin') userRole = 'ADMIN';
+        else if (selectedRole === 'Manager') userRole = 'MANAGER';
+        
+        setUser({
+          id: 'mock-user-demo-' + selectedRole.toLowerCase().replace(' ', '_'),
+          email: 'demo@restaurant.com',
+          name: `Demo ${selectedRole}`,
+          role: userRole,
+          avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${selectedRole.toLowerCase()}`,
+          businessType: 'Restaurant',
+          businessName: businessName || 'Demo Restaurant',
+          restaurantId: 'mock-restaurant-id',
+          branch: null,
+          employee: {
+            id: 'mock-emp-' + selectedRole.toLowerCase().replace(' ', '_'),
+            employeeId: 'EMP-' + selectedRole.toUpperCase().replace(' ', '').slice(0, 3) + '-101',
+            name: `Demo ${selectedRole}`,
+            phone: '9000000000',
+            email: 'demo@restaurant.com',
+            department: 'Staff',
+            role: selectedRole,
+            status: 'Active'
+          }
+        });
+        setIsLoading(false);
+        return true;
+      }
+      
       setError(err.message || 'Connection failed');
       setIsLoading(false);
       return false;
@@ -221,16 +299,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers.set('Content-Type', 'application/json');
     }
 
-    const config = { ...options, headers };
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const config = { ...options, headers, signal: controller.signal };
 
     try {
       const response = await fetch(`${API_BASE}${endpoint}`, config);
+      clearTimeout(timeoutId);
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || 'API request failed');
+        let errData;
+        try {
+          errData = await response.json();
+        } catch (_) {
+          throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
+        }
+        throw new Error(errData.message || errData.error || `API request failed with status ${response.status}`);
       }
       return await response.json();
     } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('Connection timed out. Please check if the server is running.');
+      }
       console.warn(`API path "${endpoint}" offline. Generating dynamic mock data values for review.`);
       const method = (options.method || 'GET').toUpperCase();
       if (method !== 'GET') {

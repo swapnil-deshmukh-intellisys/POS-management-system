@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 import {
   Bell,
   Building2,
@@ -246,9 +247,43 @@ const KpiCard: React.FC<{
 
 export const Reports: React.FC = () => {
   const auth = useAuth();
-  const [activeCategory, setActiveCategory] = useState('Sales Reports');
-  const [salesSubTab, setSalesSubTab] = useState<'Daily' | 'Weekly' | 'Monthly' | 'Quarterly' | 'Yearly' | 'Custom'>('Daily');
-  const [activeFilter, setActiveFilter] = useState('Today');
+  const [searchParams] = useSearchParams();
+  const [activeCategory, setActiveCategory] = useState(() => {
+    return searchParams.get('category') || 'Sales Reports';
+  });
+  const [salesSubTab, setSalesSubTab] = useState<'Daily' | 'Weekly' | 'Monthly' | 'Quarterly' | 'Yearly' | 'Custom'>(() => {
+    const filt = searchParams.get('filter') || 'Today';
+    if (filt === 'Today') return 'Daily';
+    if (filt === 'Last 7 Days' || filt === 'Yesterday') return 'Weekly';
+    if (filt === 'Last 30 Days' || filt === 'This Month' || filt === 'Last Month') return 'Monthly';
+    if (filt === 'Quarter') return 'Quarterly';
+    if (filt === 'Year') return 'Yearly';
+    if (filt === 'Custom Date Range') return 'Custom';
+    return 'Daily';
+  });
+  const [activeFilter, setActiveFilter] = useState(() => {
+    return searchParams.get('filter') || 'Today';
+  });
+
+  // Sync URL search params
+  useEffect(() => {
+    const cat = searchParams.get('category');
+    if (cat) {
+      setActiveCategory(cat);
+    }
+    const filt = searchParams.get('filter');
+    if (filt) {
+      setActiveFilter(filt);
+      if (cat === 'Sales Reports') {
+        if (filt === 'Today') setSalesSubTab('Daily');
+        else if (filt === 'Last 7 Days' || filt === 'Yesterday') setSalesSubTab('Weekly');
+        else if (filt === 'Last 30 Days' || filt === 'This Month' || filt === 'Last Month') setSalesSubTab('Monthly');
+        else if (filt === 'Quarter') setSalesSubTab('Quarterly');
+        else if (filt === 'Year') setSalesSubTab('Yearly');
+        else if (filt === 'Custom Date Range') setSalesSubTab('Custom');
+      }
+    }
+  }, [searchParams]);
   const [customStart, setCustomStart] = useState('2026-06-01');
   const [customEnd, setCustomEnd] = useState('2026-06-10');
 
@@ -1826,7 +1861,6 @@ export const Settings: React.FC = () => {
   const tabs = [...settingsTabs];
   if (isRestaurant) {
     tabs.push(
-      ['Staff Management', 'Add, edit and delete waiters', Users, 'text-purple-600 bg-purple-50'],
       ['Table Settings', 'Add, edit and delete tables', ClipboardList, 'text-pink-600 bg-pink-50']
     );
   }
@@ -3350,91 +3384,7 @@ export const Settings: React.FC = () => {
               </div>
             )}
 
-            {/* Staff Management */}
-            {activeTab === 'Staff Management' && (
-              <div className="space-y-6 text-left font-['Trebuchet_MS',_sans-serif]">
-                <div className="flex justify-between items-center border-b border-neutral-200 pb-2">
-                  <h2 className="text-lg font-bold text-black uppercase tracking-wider">Staff Management</h2>
-                  <button
-                    onClick={() => {
-                      setWaiterName('');
-                      setWaiterMobile('');
-                      setShowAddWaiterModal(true);
-                    }}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-normal py-2 px-3 rounded-xl flex items-center gap-1.5 text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Waiter</span>
-                  </button>
-                </div>
 
-                <div className="space-y-3">
-                  {waitersList.map(waiter => {
-                    const tableChips = waiter.tableAssignments
-                      ? waiter.tableAssignments
-                        .map((a: any) => {
-                          const d = a.tableNumber.replace(/\D/g, '');
-                          return d ? `T${d}` : '';
-                        })
-                        .filter(Boolean)
-                        .join(' | ')
-                      : '';
-
-                    return (
-                      <div key={waiter.id} className="p-4 rounded-xl border border-neutral-200 bg-white flex items-center justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="font-semibold text-black text-sm flex items-center gap-2">
-                            <span>{waiter.name}</span>
-                            {waiter.employeeCode && (
-                              <span className="text-[10px] bg-neutral-100 text-neutral-600 px-1.5 py-0.5 rounded font-mono font-normal tracking-wider">
-                                ID: {waiter.employeeCode}
-                              </span>
-                            )}
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${waiter.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-600'
-                              }`}>
-                              {waiter.status}
-                            </span>
-                          </div>
-                          <div className="text-xs text-black mt-1 font-normal">Mobile: {waiter.mobile}</div>
-                          {tableChips && (
-                            <div className="text-xs text-emerald-600 font-bold mt-1.5">
-                              Assigned Tables: {tableChips}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              setSelectedWaiter(waiter);
-                              setWaiterName(waiter.name);
-                              setWaiterMobile(waiter.mobile);
-                              setWaiterCode(waiter.employeeCode || '');
-                              setWaiterStatus(waiter.status || 'ACTIVE');
-                              setShowEditWaiterModal(true);
-                            }}
-                            className="p-2 border border-neutral-200 hover:bg-neutral-50 text-blue-600 rounded-xl transition cursor-pointer"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedWaiter(waiter);
-                              setDeletionReason('');
-                              setTransferToWaiterId('');
-                              setShowDeleteWaiterModal(true);
-                            }}
-                            className="p-2 border border-neutral-200 hover:bg-red-50 text-red-600 rounded-xl transition cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Table Settings */}
             {activeTab === 'Table Settings' && (

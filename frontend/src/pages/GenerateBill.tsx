@@ -33,6 +33,19 @@ export const GenerateBill: React.FC = () => {
     loadTables();
   }, []);
 
+  useEffect(() => {
+    if (tables.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const urlTableId = params.get('tableId');
+      if (urlTableId) {
+        const found = tables.find(t => t.id === urlTableId);
+        if (found) {
+          selectBillingTable(found);
+        }
+      }
+    }
+  }, [tables, window.location.search]);
+
   const selectBillingTable = async (t: any) => {
     setTableId(t.id);
     setTable(t);
